@@ -27,7 +27,7 @@ impl DatasetSource for LotusSmiles {
     fn extracted_file_name(&self) -> &'static str {
         "260413_frozen_metadata.csv"
     }
-    fn compression(&self) -> crate::prelude::DatasetCompression {
+    fn compression(&self) -> DatasetCompression {
         DatasetCompression::Gzip
     }
 }
