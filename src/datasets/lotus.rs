@@ -1,8 +1,12 @@
 use super::{
-    DatasetCompression, reader::{DatasetSmilesIter, DatasetSmilesRecordIter}, source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource}, types::{DatasetError, DatasetFetchOptions},
+    DatasetCompression,
+    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
+    source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource},
+    types::{DatasetError, DatasetFetchOptions},
 };
 
-/// The official LOTUS natural products `260413_frozen_metadata.csv.gz` dataset bulk download.
+/// The official LOTUS natural products `260413_frozen_metadata.csv.gz` dataset
+/// bulk download.
 ///
 /// Source: `https://zenodo.org/records/19360665/files/260413_frozen_metadata.csv.gz`
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
