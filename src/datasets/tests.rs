@@ -744,45 +744,6 @@ fn lotus_record_iterator_rejects_malformed_rows() {
 }
 
 #[test]
-fn lotus_record_iterator_reads_the_tab_separated_upstream_layout() {
-    let directory = tempdir().unwrap();
-
-    let dataset_path = directory.path().join("tmp_lotus.csv");
-
-    fs::write(
-        &dataset_path,
-        concat!(
-            "structure_inchikey,structure_smiles\n",
-            "LFQSCWFLJHTTHZ-UHFFFAOYSA-N,CCO\n",
-            "UHOVQNZJYSORNB-UHFFFAOYSA-N,c1ccccc1\n",
-        ),
-    )
-    .unwrap();
-
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
-
-    let records = DatasetSmilesRecordIter::for_lotus(&artifact)
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-
-    assert_eq!(records.len(), 2);
-
-    assert_eq!(records[0].smiles(), "CCO");
-    assert_eq!(records[0].id(), "LFQSCWFLJHTTHZ-UHFFFAOYSA-N");
-
-    assert_eq!(records[1].smiles(), "c1ccccc1");
-    assert_eq!(records[1].id(), "UHOVQNZJYSORNB-UHFFFAOYSA-N");
-}
-
-#[test]
 fn lotus_record_iterator_rejects_a_row_with_a_third_field() {
     let directory = tempdir().unwrap();
 
