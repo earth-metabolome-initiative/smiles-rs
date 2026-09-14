@@ -51,6 +51,8 @@ struct CsvRecords {
     record: csv::StringRecord,
     id_column: usize,
     smiles_column: usize,
+    id_column_name: &'static str,
+    smiles_column_name: &'static str,
     line_number: usize,
 }
 
@@ -179,6 +181,8 @@ impl DatasetSmilesRecordIter {
                 record: csv::StringRecord::new(),
                 id_column,
                 smiles_column,
+                id_column_name: "identifier",
+                smiles_column_name: "canonical_smiles",
                 line_number: 1,
             }),
         })
@@ -425,3 +429,4 @@ fn csv_error(
         _ => DatasetError::Format { dataset_id, line_number, message },
     }
 }
+
