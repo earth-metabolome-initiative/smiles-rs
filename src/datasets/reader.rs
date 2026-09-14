@@ -47,10 +47,12 @@ struct LineRecords {
 /// Records read from a single CSV file with a header row.
 struct CsvRecords {
     path: PathBuf,
-    reader: csv::Reader<File>,
+    reader: csv::Reader<Box<dyn BufRead + Send>>,
     record: csv::StringRecord,
     id_column: usize,
+    id_column_name: &'static str,
     smiles_column: usize,
+    smiles_column_name: &'static str,
     line_number: usize,
 }
 
@@ -153,39 +155,12 @@ impl DatasetSmilesRecordIter {
     }
 
     pub(crate) fn for_coconut(artifact: &DatasetArtifact) -> Result<Self, DatasetError> {
-        let dataset_id = artifact.dataset_id();
-        let path = artifact.decompressed_path().unwrap_or_else(|| artifact.path());
-        if path.extension().is_some_and(|extension| extension == "zip") {
-            return Err(DatasetError::InvalidSelection {
-                dataset_id,
-                message: "reading records needs the extracted CSV: fetch with \
-                          ArchiveMode::Decompress or ArchiveMode::KeepBoth"
-                    .into(),
-            });
-        }
-
-        let file = File::open(path)
-            .map_err(|source| DatasetError::Io { path: path.to_path_buf(), source })?;
-        let mut reader = csv::ReaderBuilder::new().has_headers(true).from_reader(file);
-        let headers = reader.headers().map_err(|error| csv_error(dataset_id, path, 1, error))?;
-        let id_column = column_index(dataset_id, headers, "identifier")?;
-        let smiles_column = column_index(dataset_id, headers, "canonical_smiles")?;
-
-        Ok(Self {
-            dataset_id,
-            source: RecordSource::Csv(CsvRecords {
-                path: path.to_path_buf(),
-                reader,
-                record: csv::StringRecord::new(),
-                id_column,
-                smiles_column,
-                line_number: 1,
-            }),
-        })
+        Self::from_csv_artifact(artifact, "identifier", "canonical_smiles")
     }
 
     pub(crate) fn for_lotus(artifact: &DatasetArtifact) -> Result<Self, DatasetError> {
-        Self::from_artifact(artifact, LineParser::SmilesThenId)
+        // use the inchikey as the id
+        Self::from_csv_artifact(artifact, "structure_inchikey", "structure_smiles")
     }
 
     fn from_artifact(artifact: &DatasetArtifact, parser: LineParser) -> Result<Self, DatasetError> {
@@ -202,6 +177,48 @@ impl DatasetSmilesRecordIter {
                 parser,
                 line_number: 0,
                 line_buffer: String::new(),
+            }),
+        })
+    }
+
+    fn from_csv_artifact(
+        artifact: &DatasetArtifact,
+        id_column_name: &'static str,
+        smiles_column_name: &'static str,
+    ) -> Result<Self, DatasetError> {
+        let dataset_id = artifact.dataset_id();
+        let path = artifact.path();
+
+        if path.extension().is_some_and(|extension| extension == "zip") {
+            return Err(DatasetError::InvalidSelection {
+                dataset_id,
+                message: "reading CSV records from a ZIP archive requires \
+                      ArchiveMode::Decompress or ArchiveMode::KeepBoth"
+                    .into(),
+            });
+        }
+
+        let input = open_text_reader(path)?;
+
+        let mut reader = csv::ReaderBuilder::new().has_headers(true).from_reader(input);
+
+        let headers = reader.headers().map_err(|error| csv_error(dataset_id, path, 1, error))?;
+
+        let id_column = column_index(dataset_id, headers, id_column_name)?;
+
+        let smiles_column = column_index(dataset_id, headers, smiles_column_name)?;
+
+        Ok(Self {
+            dataset_id,
+            source: RecordSource::Csv(CsvRecords {
+                path: path.to_path_buf(),
+                reader,
+                record: csv::StringRecord::new(),
+                id_column,
+                id_column_name,
+                smiles_column,
+                smiles_column_name,
+                line_number: 1,
             }),
         })
     }
@@ -305,14 +322,15 @@ impl CsvRecords {
             DatasetError::Format {
                 dataset_id,
                 line_number,
-                message: "expected a COCONUT CSV row with an identifier".into(),
+                message: format!("expected a value in CSV column '{}'", self.id_column_name),
             }
         })?;
+
         let smiles = self.field(self.smiles_column).ok_or_else(|| {
             DatasetError::Format {
                 dataset_id,
                 line_number,
-                message: "expected a COCONUT CSV row with a canonical_smiles value".into(),
+                message: format!("expected a value in CSV column '{}'", self.smiles_column_name),
             }
         })?;
         Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))

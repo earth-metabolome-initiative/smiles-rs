@@ -665,25 +665,33 @@ fn coconut_records_reject_an_archive_that_was_kept_compressed() {
         Err(error) => panic!("unexpected error: {error}"),
     }
 }
-
 #[test]
 fn lotus_smiles_metadata_matches_current_upstream_layout() {
     let dataset = LotusSmiles;
 
     assert_eq!(dataset.id(), "lotus-smiles");
-    assert_eq!(dataset.file_name(), "Lotus.smi");
-    assert_eq!(dataset.extracted_file_name(), "Lotus.smi");
-    assert_eq!(dataset.compression(), DatasetCompression::None);
-    assert!(dataset.url().contains("/download/smiles"));
+    assert_eq!(dataset.file_name(), "260413_frozen_metadata.csv.gz");
+    assert_eq!(dataset.extracted_file_name(), "260413_frozen_metadata.csv");
+    assert_eq!(dataset.compression(), DatasetCompression::Gzip);
+    assert!(dataset.url().contains("zenodo.org/records/19360665"));
+    assert!(dataset.url().ends_with("/260413_frozen_metadata.csv.gz"));
 }
 
 #[test]
 fn lotus_record_iterator_streams_smiles_and_identifiers() {
     let directory = tempdir().unwrap();
 
-    let dataset_path = directory.path().join("Lotus.smi");
+    let dataset_path = directory.path().join("tmp_lotus.csv");
 
-    fs::write(&dataset_path, "CCO LTS0000001\nc1ccccc1 LTS0000002\n").unwrap();
+    fs::write(
+        &dataset_path,
+        concat!(
+            "structure_inchikey,structure_smiles\n",
+            "LFQSCWFLJHTTHZ-UHFFFAOYSA-N,CCO\n",
+            "UHOVQNZJYSORNB-UHFFFAOYSA-N,c1ccccc1\n",
+        ),
+    )
+    .unwrap();
 
     let artifact = DatasetArtifact {
         dataset_id: "lotus-smiles",
@@ -702,18 +710,23 @@ fn lotus_record_iterator_streams_smiles_and_identifiers() {
     assert_eq!(records.len(), 2);
 
     assert_eq!(records[0].smiles(), "CCO");
-    assert_eq!(records[0].id(), "LTS0000001");
+    assert_eq!(records[0].id(), "LFQSCWFLJHTTHZ-UHFFFAOYSA-N");
 
     assert_eq!(records[1].smiles(), "c1ccccc1");
-    assert_eq!(records[1].id(), "LTS0000002");
+    assert_eq!(records[1].id(), "UHOVQNZJYSORNB-UHFFFAOYSA-N");
 }
 
 #[test]
 fn lotus_record_iterator_rejects_malformed_rows() {
     let directory = tempdir().unwrap();
 
-    let dataset_path = directory.path().join("Lotus.smi");
-    fs::write(&dataset_path, "CCO\n").unwrap();
+    let dataset_path = directory.path().join("tmp_lotus.csv");
+
+    fs::write(
+        &dataset_path,
+        concat!("structure_inchikey,structure_smiles\n", "LFQSCWFLJHTTHZ-UHFFFAOYSA-N,\n",),
+    )
+    .unwrap();
 
     let artifact = DatasetArtifact {
         dataset_id: "lotus-smiles",
@@ -725,47 +738,22 @@ fn lotus_record_iterator_rejects_malformed_rows() {
     };
 
     match DatasetSmilesRecordIter::for_lotus(&artifact).unwrap().next() {
-        Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 1, .. })) => {}
+        Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 2, .. })) => {}
         other => panic!("unexpected result: {other:?}"),
     }
-}
-
-#[test]
-fn lotus_record_iterator_reads_the_tab_separated_upstream_layout() {
-    let directory = tempdir().unwrap();
-
-    let dataset_path = directory.path().join("Lotus.smi");
-    fs::write(&dataset_path, "CCO\tLTS0000001\nc1ccccc1\tLTS0000002\n").unwrap();
-
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
-
-    let records = DatasetSmilesRecordIter::for_lotus(&artifact)
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-
-    assert_eq!(records.len(), 2);
-
-    assert_eq!(records[0].smiles(), "CCO");
-    assert_eq!(records[0].id(), "LTS0000001");
-
-    assert_eq!(records[1].smiles(), "c1ccccc1");
-    assert_eq!(records[1].id(), "LTS0000002");
 }
 
 #[test]
 fn lotus_record_iterator_rejects_a_row_with_a_third_field() {
     let directory = tempdir().unwrap();
 
-    let dataset_path = directory.path().join("Lotus.smi");
-    fs::write(&dataset_path, "CCO LTS0000001 junk\n").unwrap();
+    let dataset_path = directory.path().join("tmp_lotus.csv");
+
+    fs::write(
+        &dataset_path,
+        concat!("structure_inchikey,structure_smiles\n", "LFQSCWFLJHTTHZ-UHFFFAOYSA-N,CCO,junk\n",),
+    )
+    .unwrap();
 
     let artifact = DatasetArtifact {
         dataset_id: "lotus-smiles",
@@ -777,7 +765,7 @@ fn lotus_record_iterator_rejects_a_row_with_a_third_field() {
     };
 
     match DatasetSmilesRecordIter::for_lotus(&artifact).unwrap().next() {
-        Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 1, .. })) => {}
+        Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 2, .. })) => {}
         other => panic!("unexpected result: {other:?}"),
     }
 }

@@ -1,13 +1,14 @@
 use super::{
+    DatasetCompression,
     reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
     source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource},
     types::{DatasetError, DatasetFetchOptions},
 };
 
-/// The official LOTUS natural products `smiles` dataset, in the plain text
-/// `.smi` format containing a `smiles` and `id` column with no headers.
+/// The official LOTUS natural products `260413_frozen_metadata.csv.gz` dataset
+/// bulk download.
 ///
-/// Source: `https://lotus.naturalproducts.net/download/smiles`
+/// Source: `https://zenodo.org/records/19360665/files/260413_frozen_metadata.csv.gz`
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub struct LotusSmiles;
 
@@ -17,11 +18,17 @@ impl DatasetSource for LotusSmiles {
     }
 
     fn url(&self) -> &'static str {
-        "https://lotus.naturalproducts.net/download/smiles"
+        "https://zenodo.org/records/19360665/files/260413_frozen_metadata.csv.gz"
     }
 
     fn file_name(&self) -> &'static str {
-        "Lotus.smi"
+        "260413_frozen_metadata.csv.gz"
+    }
+    fn extracted_file_name(&self) -> &'static str {
+        "260413_frozen_metadata.csv"
+    }
+    fn compression(&self) -> DatasetCompression {
+        DatasetCompression::Gzip
     }
 }
 
