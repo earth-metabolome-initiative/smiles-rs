@@ -47,7 +47,7 @@ struct LineRecords {
 /// Records read from a single CSV file with a header row.
 struct CsvRecords {
     path: PathBuf,
-    reader: csv::Reader<File>,
+    reader: csv::Reader<Box<dyn BufRead + Send>>,
     record: csv::StringRecord,
     id_column: usize,
     id_column_name: &'static str,
@@ -188,12 +188,26 @@ impl DatasetSmilesRecordIter {
     ) -> Result<Self, DatasetError> {
         let dataset_id = artifact.dataset_id();
         let path = artifact.path();
-        let file = File::open(path)
-            .map_err(|source| DatasetError::Io { path: path.to_path_buf(), source })?;
-        let mut reader = csv::ReaderBuilder::new().has_headers(true).from_reader(file);
+
+        if path.extension().is_some_and(|extension| extension == "zip") {
+            return Err(DatasetError::InvalidSelection {
+                dataset_id,
+                message: "reading CSV records from a ZIP archive requires \
+                      ArchiveMode::Decompress or ArchiveMode::KeepBoth"
+                    .into(),
+            });
+        }
+
+        let input = open_text_reader(path)?;
+
+        let mut reader = csv::ReaderBuilder::new().has_headers(true).from_reader(input);
+
         let headers = reader.headers().map_err(|error| csv_error(dataset_id, path, 1, error))?;
+
         let id_column = column_index(dataset_id, headers, id_column_name)?;
+
         let smiles_column = column_index(dataset_id, headers, smiles_column_name)?;
+
         Ok(Self {
             dataset_id,
             source: RecordSource::Csv(CsvRecords {
