@@ -79,6 +79,16 @@ pub trait DatasetSource {
     }
 }
 
+/// Metadata for a downloadable dataset source from Zenodo.
+pub trait ZenodoDatasetSource {
+    /// Stable Zenodo dataset identifier used for cache subdirectories and diagnostic
+    fn zenodo_record_id(&self) -> u64;
+    /// 
+    fn zenodo_file_prefix(&self) -> &'static str;
+
+    fn zenodo_file_suffix(&self) -> &'static str;
+}
+
 /// Metadata for a dataset that is distributed across multiple files.
 pub trait DatasetCollectionSource {
     /// Stable dataset identifier used for cache subdirectories and diagnostics.
