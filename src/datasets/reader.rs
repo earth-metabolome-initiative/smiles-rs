@@ -50,9 +50,7 @@ struct CsvRecords {
     reader: csv::Reader<Box<dyn BufRead + Send>>,
     record: csv::StringRecord,
     id_column: usize,
-    id_column_name: &'static str,
     smiles_column: usize,
-    smiles_column_name: &'static str,
     line_number: usize,
 }
 
@@ -215,9 +213,7 @@ impl DatasetSmilesRecordIter {
                 reader,
                 record: csv::StringRecord::new(),
                 id_column,
-                id_column_name,
                 smiles_column,
-                smiles_column_name,
                 line_number: 1,
             }),
         })
@@ -322,7 +318,7 @@ impl CsvRecords {
             DatasetError::Format {
                 dataset_id,
                 line_number,
-                message: format!("expected a value in CSV column '{}'", self.id_column_name),
+                message: format!("expected a value in CSV column index {}", self.id_column),
             }
         })?;
 
@@ -330,7 +326,7 @@ impl CsvRecords {
             DatasetError::Format {
                 dataset_id,
                 line_number,
-                message: format!("expected a value in CSV column '{}'", self.smiles_column_name),
+                message: format!("expected a value in CSV column index {}", self.smiles_column),
             }
         })?;
         Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))
