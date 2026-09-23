@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use std::{
     env,
     fs::{self, File},
@@ -11,10 +11,11 @@ use dirs::cache_dir;
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
 use tar::Archive;
+use zenodo_rs::ZenodoClient;
 
 use super::{
     progress::{ProgressReader, new_byte_progress_bar, progress_label},
-    source::{DatasetCollectionSource, DatasetSource},
+    source::{DatasetCollectionSource, DatasetSource, ZenodoDatasetSource},
     types::{
         ArchiveMode, CacheMode, DatasetArtifact, DatasetCollectionArtifact, DatasetCompression,
         DatasetError, DatasetFetchOptions, DatasetFile,
@@ -102,6 +103,126 @@ pub(crate) fn fetch_dataset<D: DatasetSource + ?Sized>(
                 )?;
 
                 (decompressed_path.clone(), true, was_downloaded, was_extracted)
+            }
+        };
+
+    Ok(DatasetArtifact {
+        dataset_id: dataset.id(),
+        path,
+        compressed_path: compressed_path.is_file().then_some(compressed_path),
+        decompressed_path: has_decompressed_path.then_some(decompressed_path),
+        was_downloaded,
+        was_decompressed,
+    })
+}
+
+pub(crate) fn fetch_zenodo_dataset<D>(
+    dataset: &D,
+    options: &DatasetFetchOptions,
+) -> Result<DatasetArtifact, DatasetError>
+where
+    D: ZenodoDatasetSource + ?Sized,
+{
+    let cache_root = match &options.cache_dir {
+        Some(path) => path.clone(),
+        None => default_dataset_cache_dir(),
+    };
+
+    let dataset_dir = cache_root.join(dataset.id());
+    create_dir_all(&dataset_dir)?;
+
+    let runtime =
+        tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|error| {
+            DatasetError::Zenodo { message: format!("failed to create Tokio runtime: {error}") }
+        })?;
+
+    let client = ZenodoClient::anonymous()
+        .map_err(|error| DatasetError::Zenodo { message: error.to_string() })?;
+
+    let concept_doi = format!("10.5281/zenodo.{}", dataset.zenodo_record_id());
+
+    let latest_record = runtime
+        .block_on(client.resolve_latest_by_doi_str(&concept_doi))
+        .map_err(|error| DatasetError::Zenodo { message: error.to_string() })?;
+
+    let files = runtime
+        .block_on(client.list_record_files(latest_record.id))
+        .map_err(|error| DatasetError::Zenodo { message: error.to_string() })?;
+
+    let file = files
+        .into_iter()
+        .find(|file| {
+            file.key.starts_with(dataset.zenodo_file_prefix())
+                && file.key.ends_with(dataset.zenodo_file_suffix())
+        })
+        .ok_or_else(|| {
+            DatasetError::Zenodo {
+                message: format!(
+                    "latest record did not contain a file matching {}*{}",
+                    dataset.zenodo_file_prefix(),
+                    dataset.zenodo_file_suffix()
+                ),
+            }
+        })?;
+
+    let compressed_path = dataset_dir.join(&file.key);
+
+    let was_downloaded = options.cache_mode == CacheMode::Redownload || !compressed_path.is_file();
+
+    if was_downloaded {
+        runtime
+            .block_on(client.download_record_file_by_key_to_path(
+                latest_record.id,
+                &file.key,
+                &compressed_path,
+            ))
+            .map_err(|error| DatasetError::Zenodo { message: error.to_string() })?;
+    }
+
+    let decompressed_path = dataset_dir.join(dataset.extracted_file_name());
+
+    let (path, has_decompressed_path, was_decompressed) =
+        match (dataset.compression(), options.archive_mode) {
+            (DatasetCompression::None, _)
+            | (
+                DatasetCompression::Gzip | DatasetCompression::TarGzip | DatasetCompression::Zip,
+                ArchiveMode::KeepCompressed,
+            ) => (compressed_path.clone(), false, false),
+
+            (DatasetCompression::Gzip, ArchiveMode::Decompress | ArchiveMode::KeepBoth) => {
+                let should_decompress = was_downloaded || !decompressed_path.is_file();
+
+                let was_decompressed = if should_decompress {
+                    gunzip_file(&compressed_path, &decompressed_path)?
+                } else {
+                    false
+                };
+
+                (decompressed_path.clone(), true, was_decompressed)
+            }
+
+            (DatasetCompression::TarGzip, ArchiveMode::Decompress | ArchiveMode::KeepBoth) => {
+                let should_extract = was_downloaded || !decompressed_path.is_file();
+
+                let was_extracted = if should_extract {
+                    untar_gzip_member(&compressed_path, &decompressed_path)?
+                } else {
+                    false
+                };
+
+                (decompressed_path.clone(), true, was_extracted)
+            }
+
+            (DatasetCompression::Zip, ArchiveMode::Decompress | ArchiveMode::KeepBoth) => {
+                let should_extract = was_downloaded || !decompressed_path.is_file();
+
+                let was_extracted = if should_extract {
+                    unzip_file(&compressed_path, &decompressed_path)?
+                } else {
+                    false
+                };
+
+                (decompressed_path.clone(), true, was_extracted)
             }
         };
 
@@ -427,6 +548,89 @@ pub(crate) fn unzip_file(
             .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
         progress_bar.finish_and_clear();
     }
+
+    remove_path_if_exists(extracted_path)?;
+
+    fs::rename(partial.path(), extracted_path)
+        .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
+
+    Ok(true)
+}
+
+fn untar_gzip_member(compressed_path: &Path, extracted_path: &Path) -> Result<bool, DatasetError> {
+    write_parent_dir(extracted_path)?;
+
+    let source_file = File::open(compressed_path)
+        .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
+
+    let progress_bar = new_byte_progress_bar(
+        source_file.metadata().ok().map(|metadata| metadata.len()),
+        &progress_label("extracting", extracted_path),
+    );
+
+    let source_file = ProgressReader::new(source_file, progress_bar.clone());
+    let decoder = GzDecoder::new(source_file);
+    let mut archive = Archive::new(decoder);
+
+    let expected_name = extracted_path
+        .file_name()
+        .unwrap_or_else(|| unreachable!("extracted path has a file name"));
+
+    let partial = PartialPath::new(extracted_path);
+
+    let entries = archive
+        .entries()
+        .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
+
+    let mut found = false;
+
+    for entry in entries {
+        let mut entry = entry
+            .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
+
+        let matches = {
+            let entry_path = entry.path().map_err(|source| {
+                DatasetError::Io { path: compressed_path.to_path_buf(), source }
+            })?;
+
+            entry.header().entry_type().is_file() && entry_path.file_name() == Some(expected_name)
+        };
+
+        if !matches {
+            continue;
+        }
+
+        let target_file = File::create(partial.path())
+            .map_err(|source| DatasetError::Io { path: partial.path().to_path_buf(), source })?;
+
+        let mut writer = BufWriter::new(target_file);
+
+        if let Err(source) = io::copy(&mut entry, &mut writer) {
+            progress_bar.abandon();
+            return Err(DatasetError::Io { path: extracted_path.to_path_buf(), source });
+        }
+
+        writer
+            .flush()
+            .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
+
+        found = true;
+        break;
+    }
+
+    if !found {
+        progress_bar.abandon();
+
+        return Err(DatasetError::Io {
+            path: extracted_path.to_path_buf(),
+            source: io::Error::new(
+                io::ErrorKind::NotFound,
+                "tar archive did not contain the expected file",
+            ),
+        });
+    }
+
+    progress_bar.finish_and_clear();
 
     remove_path_if_exists(extracted_path)?;
 

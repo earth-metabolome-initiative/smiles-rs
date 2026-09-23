@@ -292,6 +292,12 @@ pub enum DatasetError {
         #[source]
         source: reqwest::Error,
     },
+    /// A Zenodo operation failed.
+    #[error("failed to fetch dataset from Zenodo: {message}")]
+    Zenodo {
+        /// A human-readable description of the Zenodo failure.
+        message: String,
+    },
     /// The on-disk materialization step failed.
     #[error("failed to access dataset path {path}: {source}")]
     Io {

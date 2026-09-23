@@ -80,12 +80,15 @@ pub trait DatasetSource {
 }
 
 /// Metadata for a downloadable dataset source from Zenodo.
-pub trait ZenodoDatasetSource {
-    /// Stable Zenodo dataset identifier used for cache subdirectories and diagnostic
+pub trait ZenodoDatasetSource: DatasetSource {
+    /// Stable Zenodo dataset identifier used to resolve latest version to
+    /// cache.
     fn zenodo_record_id(&self) -> u64;
-    /// 
+
+    /// Prefix used to identify the desired file in the latest Zenodo record.
     fn zenodo_file_prefix(&self) -> &'static str;
 
+    /// Suffix used to identify the desired file in the latest Zenodo record.
     fn zenodo_file_suffix(&self) -> &'static str;
 }
 

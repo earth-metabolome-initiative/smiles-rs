@@ -157,8 +157,7 @@ impl DatasetSmilesRecordIter {
     }
 
     pub(crate) fn for_lotus(artifact: &DatasetArtifact) -> Result<Self, DatasetError> {
-        // use the inchikey as the id
-        Self::from_csv_artifact(artifact, "structure_inchikey", "structure_smiles")
+        Self::from_csv_artifact(artifact, "inchi_key", "smiles")
     }
 
     fn from_artifact(artifact: &DatasetArtifact, parser: LineParser) -> Result<Self, DatasetError> {
@@ -187,11 +186,18 @@ impl DatasetSmilesRecordIter {
         let dataset_id = artifact.dataset_id();
         let path = artifact.path();
 
-        if path.extension().is_some_and(|extension| extension == "zip") {
+        let is_zip = path.extension().is_some_and(|extension| extension == "zip");
+
+        let is_tar_gzip = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with(".tar.gz"));
+
+        if is_zip || is_tar_gzip {
             return Err(DatasetError::InvalidSelection {
                 dataset_id,
-                message: "reading CSV records from a ZIP archive requires \
-                      ArchiveMode::Decompress or ArchiveMode::KeepBoth"
+                message: "reading CSV records from an archive requires \
+                  ArchiveMode::Decompress or ArchiveMode::KeepBoth"
                     .into(),
             });
         }
