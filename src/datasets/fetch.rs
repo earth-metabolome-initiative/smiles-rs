@@ -77,7 +77,6 @@ pub(crate) fn fetch_dataset<D: DatasetSource + ?Sized>(
         compressed_path,
         decompressed_path,
         was_downloaded,
-        untar_gzip_file,
     )
 }
 
@@ -161,7 +160,6 @@ where
         compressed_path,
         decompressed_path,
         was_downloaded,
-        untar_gzip_member,
     )
 }
 
@@ -477,117 +475,42 @@ pub(crate) fn unzip_file(
     Ok(true)
 }
 
-fn untar_gzip_member(compressed_path: &Path, extracted_path: &Path) -> Result<bool, DatasetError> {
-    write_parent_dir(extracted_path)?;
-
-    let source_file = File::open(compressed_path)
-        .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
-
-    let progress_bar = new_byte_progress_bar(
-        source_file.metadata().ok().map(|metadata| metadata.len()),
-        &progress_label("extracting", extracted_path),
-    );
-
-    let source_file = ProgressReader::new(source_file, progress_bar.clone());
-    let decoder = GzDecoder::new(source_file);
-    let mut archive = Archive::new(decoder);
-
-    let expected_name = extracted_path
-        .file_name()
-        .unwrap_or_else(|| unreachable!("extracted path has a file name"));
-
-    let partial = PartialPath::new(extracted_path);
-
-    let entries = archive
-        .entries()
-        .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
-
-    let mut found = false;
-
-    for entry in entries {
-        let mut entry = entry
-            .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
-
-        let matches = {
-            let entry_path = entry.path().map_err(|source| {
-                DatasetError::Io { path: compressed_path.to_path_buf(), source }
-            })?;
-
-            entry.header().entry_type().is_file() && entry_path.file_name() == Some(expected_name)
-        };
-
-        if !matches {
-            continue;
-        }
-
-        let target_file = File::create(partial.path())
-            .map_err(|source| DatasetError::Io { path: partial.path().to_path_buf(), source })?;
-
-        let mut writer = BufWriter::new(target_file);
-
-        if let Err(source) = io::copy(&mut entry, &mut writer) {
-            progress_bar.abandon();
-            return Err(DatasetError::Io { path: extracted_path.to_path_buf(), source });
-        }
-
-        writer
-            .flush()
-            .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
-
-        found = true;
-        break;
-    }
-
-    if !found {
-        progress_bar.abandon();
-
-        return Err(DatasetError::Io {
-            path: extracted_path.to_path_buf(),
-            source: io::Error::new(
-                io::ErrorKind::NotFound,
-                "tar archive did not contain the expected file",
-            ),
-        });
-    }
-
-    progress_bar.finish_and_clear();
-
-    remove_path_if_exists(extracted_path)?;
-
-    fs::rename(partial.path(), extracted_path)
-        .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
-
-    Ok(true)
-}
-
 pub(crate) fn untar_gzip_file(
     compressed_path: &Path,
     extracted_path: &Path,
 ) -> Result<bool, DatasetError> {
     write_parent_dir(extracted_path)?;
+
     let source_file = File::open(compressed_path)
         .map_err(|source| DatasetError::Io { path: compressed_path.to_path_buf(), source })?;
+
     let progress_bar = new_byte_progress_bar(
         source_file.metadata().ok().map(|metadata| metadata.len()),
         &progress_label("extracting", extracted_path),
     );
+
     let source_file = ProgressReader::new(source_file, progress_bar.clone());
     let decoder = GzDecoder::new(source_file);
     let mut archive = Archive::new(decoder);
 
     let partial = PartialPath::new(extracted_path);
+
     remove_path_if_exists(partial.path())?;
     create_dir_all(partial.path())?;
+
     if let Err(source) = archive.unpack(partial.path()) {
         progress_bar.abandon();
         return Err(DatasetError::Io { path: extracted_path.to_path_buf(), source });
     }
+
     progress_bar.finish_and_clear();
 
     let extracted_name = extracted_path
         .file_name()
         .unwrap_or_else(|| unreachable!("extracted path has a file name"));
+
     let unpacked_path = partial.path().join(extracted_name);
+
     if !unpacked_path.exists() {
         return Err(DatasetError::Io {
             path: extracted_path.to_path_buf(),
@@ -599,8 +522,12 @@ pub(crate) fn untar_gzip_file(
     }
 
     remove_path_if_exists(extracted_path)?;
+
     fs::rename(&unpacked_path, extracted_path)
         .map_err(|source| DatasetError::Io { path: extracted_path.to_path_buf(), source })?;
+
+    remove_path_if_exists(partial.path())?;
+
     Ok(true)
 }
 
@@ -692,7 +619,6 @@ fn materialize_dataset_artifact(
     compressed_path: PathBuf,
     decompressed_path: PathBuf,
     was_downloaded: bool,
-    tar_gzip_extractor: fn(&Path, &Path) -> Result<bool, DatasetError>,
 ) -> Result<DatasetArtifact, DatasetError> {
     let (path, has_decompressed_path, was_decompressed) = match (compression, archive_mode) {
         (DatasetCompression::None, _)
@@ -717,7 +643,7 @@ fn materialize_dataset_artifact(
             let should_extract = was_downloaded || !decompressed_path.is_file();
 
             let was_extracted = if should_extract {
-                tar_gzip_extractor(&compressed_path, &decompressed_path)?
+                untar_gzip_file(&compressed_path, &decompressed_path)?
             } else {
                 false
             };
