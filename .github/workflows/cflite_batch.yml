@@ -33,4 +33,4 @@ jobs:
           mode: batch
           sanitizer: ${{ matrix.sanitizer }}
           storage-repo: ${{ github.server_url }}/${{ github.repository }}.git
-          storage-repo-branch: clusterfuzzlite
+          storage-repo-branch: fuzz-corpus
