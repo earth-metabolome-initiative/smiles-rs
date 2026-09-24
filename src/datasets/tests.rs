@@ -795,3 +795,34 @@ fn lotus_record_iterator_rejects_malformed_rows() {
         other => panic!("unexpected result: {other:?}"),
     }
 }
+
+#[test]
+#[ignore = "requires network access to Zenodo"]
+fn lotus_latest_dataset_has_unique_inchi_keys() {
+    use crate::alloc::borrow::ToOwned;
+    use std::collections::HashSet;
+
+    let directory = tempdir().unwrap();
+
+    let mut seen = HashSet::new();
+
+    let records = LotusSmiles
+        .iter_records_with_options(&DatasetFetchOptions {
+            cache_dir: Some(directory.path().to_path_buf()),
+            cache_mode: CacheMode::UseCache,
+            archive_mode: ArchiveMode::Decompress,
+        })
+        .unwrap();
+
+    for record in records {
+        let record = record.unwrap();
+
+        assert!(
+            seen.insert(record.id().to_owned()),
+            "duplicate LOTUS InChIKey: {}",
+            record.id()
+        );
+    }
+
+    assert!(!seen.is_empty());
+}
