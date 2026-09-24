@@ -5,8 +5,8 @@ use std::{
 };
 
 use super::{
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
-    source::{DatasetCollectionSource, SmilesDatasetRecordSource, SmilesDatasetSource},
+    reader::DatasetSmilesRecordIter,
+    source::{DatasetCollectionSource, SmilesDatasetRecordSource},
     types::{ArchiveMode, DatasetCompression, DatasetError, DatasetFetchOptions, DatasetFile},
 };
 
@@ -135,15 +135,6 @@ impl DatasetCollectionSource for Zinc20Smiles {
         let start = usize::from(self.first_chunk - 1);
         let end = usize::from(self.last_chunk);
         ZINC20_CHUNK_FILES[start..end].to_vec()
-    }
-}
-
-impl SmilesDatasetSource for Zinc20Smiles {
-    fn iter_smiles_with_options(
-        &self,
-        options: &DatasetFetchOptions,
-    ) -> Result<DatasetSmilesIter, DatasetError> {
-        Ok(DatasetSmilesIter::from_records(self.iter_records_with_options(options)?))
     }
 }
 

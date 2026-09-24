@@ -1,7 +1,7 @@
 //! Defines errors used in the SMILES parser.
 
 use alloc::{format, string::String};
-use core::{fmt, num::TryFromIntError, ops::Range};
+use core::{num::TryFromIntError, ops::Range};
 
 use elements_rs::Element;
 use thiserror::Error;
@@ -159,7 +159,8 @@ impl From<TryFromIntError> for SmilesError {
 }
 
 /// Wraps the `Smiles` error adding the location of where the error was found
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("{smiles_error} at {}..{}", span.start, span.end)]
 pub struct SmilesErrorWithSpan {
     /// The [`SmilesError`]
     smiles_error: SmilesError,
@@ -267,12 +268,6 @@ impl SmilesErrorWithSpan {
         underline.push_str(&"^".repeat(end - start));
 
         format!("{input}\n{underline}\n{}", self.smiles_error)
-    }
-}
-
-impl fmt::Display for SmilesErrorWithSpan {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} at {}..{}", self.smiles_error, self.start(), self.end())
     }
 }
 

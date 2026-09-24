@@ -22,11 +22,11 @@
 //! ```
 //!
 //! ```no_run
-//! use smiles_rs::datasets::{PUBCHEM_SMILES, SmilesDatasetSource};
+//! use smiles_rs::datasets::{PUBCHEM_SMILES, SmilesDatasetRecordSource};
 //!
-//! let mut smiles = PUBCHEM_SMILES.iter_smiles()?;
-//! if let Some(first) = smiles.next() {
-//!     println!("{}", first?);
+//! let mut records = PUBCHEM_SMILES.iter_records()?;
+//! if let Some(first) = records.next() {
+//!     println!("{}", first?.smiles());
 //! }
 //! # Ok::<(), smiles_rs::DatasetError>(())
 //! ```
@@ -48,10 +48,8 @@ pub use fetch::default_dataset_cache_dir;
 pub use lotus::{LOTUS_SMILES, LotusSmiles};
 pub use massspecgym::{MASS_SPEC_GYM_SMILES, MassSpecGymSmiles};
 pub use pubchem::{PUBCHEM_SMILES, PubChemSmiles};
-pub use reader::{DatasetSmilesIter, DatasetSmilesRecordIter};
-pub use source::{
-    DatasetCollectionSource, DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource,
-};
+pub use reader::DatasetSmilesRecordIter;
+pub use source::{DatasetCollectionSource, DatasetSource, SmilesDatasetRecordSource};
 pub use types::{
     ArchiveMode, CacheMode, DatasetArtifact, DatasetCollectionArtifact, DatasetCompression,
     DatasetError, DatasetFetchOptions, DatasetFile, DatasetSmilesRecord,

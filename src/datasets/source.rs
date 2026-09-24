@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use super::{
     fetch::{fetch_dataset, fetch_dataset_collection},
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
+    reader::DatasetSmilesRecordIter,
     types::{
         DatasetArtifact, DatasetCollectionArtifact, DatasetCompression, DatasetError,
         DatasetFetchOptions, DatasetFile,
@@ -109,61 +109,6 @@ pub trait DatasetCollectionSource {
     ) -> Result<DatasetCollectionArtifact, DatasetError> {
         fetch_dataset_collection(self, options)
     }
-}
-
-/// A dataset source that can stream SMILES strings directly.
-pub trait SmilesDatasetSource {
-    /// Opens a streaming iterator over the dataset SMILES using default fetch
-    /// options.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DatasetError`] if the dataset cannot be fetched or if the
-    /// materialized dataset cannot be opened for streaming.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use smiles_rs::datasets::{PUBCHEM_SMILES, SmilesDatasetSource};
-    ///
-    /// let mut smiles = PUBCHEM_SMILES.iter_smiles()?;
-    /// if let Some(first) = smiles.next() {
-    ///     let _ = first?;
-    /// }
-    /// # Ok::<(), smiles_rs::DatasetError>(())
-    /// ```
-    fn iter_smiles(&self) -> Result<DatasetSmilesIter, DatasetError> {
-        self.iter_smiles_with_options(&DatasetFetchOptions::default())
-    }
-
-    /// Opens a streaming iterator over the dataset SMILES using explicit fetch
-    /// options.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DatasetError`] if the dataset cannot be fetched or if the
-    /// materialized dataset cannot be opened for streaming.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use smiles_rs::datasets::{
-    ///     ArchiveMode, DatasetFetchOptions, PUBCHEM_SMILES, SmilesDatasetSource,
-    /// };
-    ///
-    /// let mut smiles = PUBCHEM_SMILES.iter_smiles_with_options(&DatasetFetchOptions {
-    ///     archive_mode: ArchiveMode::KeepCompressed,
-    ///     ..DatasetFetchOptions::default()
-    /// })?;
-    /// if let Some(first) = smiles.next() {
-    ///     let _ = first?;
-    /// }
-    /// # Ok::<(), smiles_rs::DatasetError>(())
-    /// ```
-    fn iter_smiles_with_options(
-        &self,
-        options: &DatasetFetchOptions,
-    ) -> Result<DatasetSmilesIter, DatasetError>;
 }
 
 /// A dataset source that can stream SMILES records with dataset identifiers.

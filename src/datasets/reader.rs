@@ -17,11 +17,6 @@ use super::{
     zinc20::collect_zinc20_smiles_paths,
 };
 
-/// A streaming iterator over SMILES strings extracted from a dataset file.
-pub struct DatasetSmilesIter {
-    inner: DatasetSmilesRecordIter,
-}
-
 /// A streaming iterator over SMILES records extracted from a dataset file.
 pub struct DatasetSmilesRecordIter {
     dataset_id: &'static str,
@@ -64,20 +59,6 @@ enum LineParser {
     PubChem,
     MassSpecGym { smiles_column: usize },
     SmilesThenId,
-}
-
-impl DatasetSmilesIter {
-    pub(crate) fn from_records(inner: DatasetSmilesRecordIter) -> Self {
-        Self { inner }
-    }
-}
-
-impl Iterator for DatasetSmilesIter {
-    type Item = Result<String, DatasetError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|record| record.map(DatasetSmilesRecord::into_smiles))
-    }
 }
 
 impl DatasetSmilesRecordIter {
@@ -315,7 +296,7 @@ impl CsvRecords {
                 message: "expected a COCONUT CSV row with a canonical_smiles value".into(),
             }
         })?;
-        Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))
+        Ok(DatasetSmilesRecord::new(id.to_owned(), line_number, smiles.to_owned()))
     }
 
     fn field(&self, column: usize) -> Option<&str> {
@@ -356,7 +337,7 @@ fn parse_smiles_record(
                     message: "expected a CID<TAB>SMILES record".into(),
                 }
             })?;
-            Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))
+            Ok(DatasetSmilesRecord::new(id.to_owned(), line_number, smiles.to_owned()))
         }
         LineParser::MassSpecGym { smiles_column } => {
             let smiles = tsv_field(line, smiles_column).ok_or_else(|| {
@@ -367,7 +348,7 @@ fn parse_smiles_record(
                 }
             })?;
             let id = tsv_field(line, 0).unwrap_or("");
-            Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))
+            Ok(DatasetSmilesRecord::new(id.to_owned(), line_number, smiles.to_owned()))
         }
         LineParser::SmilesThenId => {
             let mut fields = line.split_whitespace();
@@ -392,7 +373,7 @@ fn parse_smiles_record(
                     message: "expected exactly two whitespace-separated fields".into(),
                 });
             }
-            Ok(DatasetSmilesRecord::new(id.to_owned(), smiles.to_owned()))
+            Ok(DatasetSmilesRecord::new(id.to_owned(), line_number, smiles.to_owned()))
         }
     }
 }

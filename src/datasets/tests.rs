@@ -16,10 +16,17 @@ use super::{
     fetch::{default_dataset_cache_dir, gunzip_file, untar_gzip_file, unzip_file},
     massspecgym::MASS_SPEC_GYM_SMILES,
     pubchem::{PUBCHEM_SMILES, PubChemSmiles},
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
+    reader::DatasetSmilesRecordIter,
     source::{DatasetCollectionSource, DatasetSource, SmilesDatasetRecordSource},
-    types::{DatasetArtifact, DatasetCollectionArtifact, DatasetCompression, DatasetError},
+    types::{
+        DatasetArtifact, DatasetCollectionArtifact, DatasetCompression, DatasetError,
+        DatasetSmilesRecord,
+    },
     zinc20::ZINC20_SMILES,
+};
+use crate::{
+    errors::SmilesError,
+    smiles::{Smiles, WildcardSmiles},
 };
 
 fn write_zinc20_tar_gzip(path: &Path, chunk_dir: &str, contents: &[u8]) {
@@ -168,39 +175,10 @@ fn pubchem_and_massspecgym_constants_are_usable_dataset_handles() {
 }
 
 #[test]
-fn dataset_smiles_iterator_is_send() {
+fn dataset_record_iterator_is_send() {
     fn assert_send<T: Send>() {}
 
-    assert_send::<DatasetSmilesIter>();
-}
-
-#[test]
-fn pubchem_smiles_iterator_streams_smiles_from_gzip_records() {
-    let directory = tempdir().unwrap();
-    let compressed_path = directory.path().join("CID-SMILES.gz");
-
-    {
-        let file = File::create(&compressed_path).unwrap();
-        let mut encoder = GzEncoder::new(file, Compression::default());
-        encoder.write_all(b"1\tCCO\n2\tc1ccccc1\n").unwrap();
-        encoder.finish().unwrap();
-    }
-
-    let artifact = DatasetArtifact {
-        dataset_id: "pubchem-smiles",
-        path: compressed_path.clone(),
-        compressed_path: Some(compressed_path),
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
-
-    let smiles =
-        DatasetSmilesIter::from_records(DatasetSmilesRecordIter::for_pubchem(&artifact).unwrap())
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-    assert_eq!(smiles, ["CCO", "c1ccccc1"]);
+    assert_send::<DatasetSmilesRecordIter>();
 }
 
 #[test]
@@ -243,20 +221,13 @@ fn massspecgym_smiles_iterator_uses_smiles_tsv_column() {
     fs::write(&dataset_path, "spec_id\tname\tsmiles\n1\tethanol\tCCO\n2\tbenzene\tc1ccccc1\n")
         .unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "massspecgym-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("massspecgym-smiles", dataset_path);
 
-    let smiles = DatasetSmilesIter::from_records(
-        DatasetSmilesRecordIter::for_mass_spec_gym(&artifact).unwrap(),
-    )
-    .collect::<Result<Vec<_>, _>>()
-    .unwrap();
+    let smiles = DatasetSmilesRecordIter::for_mass_spec_gym(&artifact)
+        .unwrap()
+        .map(|record| record.map(DatasetSmilesRecord::into_smiles))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     assert_eq!(smiles, ["CCO", "c1ccccc1"]);
 }
@@ -337,14 +308,7 @@ fn massspecgym_smiles_iterator_requires_smiles_header_column() {
 
     fs::write(&dataset_path, "spec_id\tname\n1\tethanol\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "massspecgym-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("massspecgym-smiles", dataset_path);
 
     match DatasetSmilesRecordIter::for_mass_spec_gym(&artifact) {
         Ok(_) => panic!("expected a missing smiles header to fail"),
@@ -591,14 +555,7 @@ fn coconut_record_iterator_uses_identifier_and_canonical_smiles_columns() {
     )
     .unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "coconut-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("coconut-smiles", dataset_path);
 
     let records = DatasetSmilesRecordIter::for_coconut(&artifact)
         .unwrap()
@@ -621,14 +578,7 @@ fn coconut_record_iterator_requires_the_expected_header_columns() {
 
     fs::write(&dataset_path, "identifier,smiles,name\nCNP000001,CCO,ethanol\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "coconut-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("coconut-smiles", dataset_path);
 
     match DatasetSmilesRecordIter::for_coconut(&artifact) {
         Err(DatasetError::Format { dataset_id: "coconut-smiles", line_number: 1, message }) => {
@@ -685,14 +635,7 @@ fn lotus_record_iterator_streams_smiles_and_identifiers() {
 
     fs::write(&dataset_path, "CCO LTS0000001\nc1ccccc1 LTS0000002\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("lotus-smiles", dataset_path);
 
     let records = DatasetSmilesRecordIter::for_lotus(&artifact)
         .unwrap()
@@ -715,14 +658,7 @@ fn lotus_record_iterator_rejects_malformed_rows() {
     let dataset_path = directory.path().join("Lotus.smi");
     fs::write(&dataset_path, "CCO\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("lotus-smiles", dataset_path);
 
     match DatasetSmilesRecordIter::for_lotus(&artifact).unwrap().next() {
         Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 1, .. })) => {}
@@ -737,14 +673,7 @@ fn lotus_record_iterator_reads_the_tab_separated_upstream_layout() {
     let dataset_path = directory.path().join("Lotus.smi");
     fs::write(&dataset_path, "CCO\tLTS0000001\nc1ccccc1\tLTS0000002\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("lotus-smiles", dataset_path);
 
     let records = DatasetSmilesRecordIter::for_lotus(&artifact)
         .unwrap()
@@ -767,17 +696,71 @@ fn lotus_record_iterator_rejects_a_row_with_a_third_field() {
     let dataset_path = directory.path().join("Lotus.smi");
     fs::write(&dataset_path, "CCO LTS0000001 junk\n").unwrap();
 
-    let artifact = DatasetArtifact {
-        dataset_id: "lotus-smiles",
-        path: dataset_path,
-        compressed_path: None,
-        decompressed_path: None,
-        was_downloaded: false,
-        was_decompressed: false,
-    };
+    let artifact = uncompressed_artifact("lotus-smiles", dataset_path);
 
     match DatasetSmilesRecordIter::for_lotus(&artifact).unwrap().next() {
         Some(Err(DatasetError::Format { dataset_id: "lotus-smiles", line_number: 1, .. })) => {}
         other => panic!("unexpected result: {other:?}"),
     }
+}
+
+fn uncompressed_artifact(dataset_id: &'static str, path: PathBuf) -> DatasetArtifact {
+    DatasetArtifact {
+        dataset_id,
+        path,
+        compressed_path: None,
+        decompressed_path: None,
+        was_downloaded: false,
+        was_decompressed: false,
+    }
+}
+
+#[test]
+fn parse_smiles_picks_the_grammar_and_returns_a_rejected_record_whole() {
+    let directory = tempdir().unwrap();
+    let dataset_path = directory.path().join("CID-SMILES");
+    fs::write(&dataset_path, "1\tCCO\n\n3\t*C\n").unwrap();
+    let artifact = uncompressed_artifact("pubchem-smiles", dataset_path);
+    let records = DatasetSmilesRecordIter::for_pubchem(&artifact)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    let wildcard = records[1].clone().parse_smiles::<WildcardSmiles>().unwrap();
+    assert_eq!(wildcard.id(), "3");
+    assert_eq!(wildcard.line_number(), 3);
+    assert_eq!(wildcard.smiles(), &WildcardSmiles::from_str("*C").unwrap());
+
+    match records[1].clone().parse_smiles::<Smiles>() {
+        Err(DatasetError::Smiles { record, source }) => {
+            assert_eq!(source.smiles_error(), SmilesError::WildcardAtomNotAllowed);
+            assert_eq!(record, DatasetSmilesRecord::new("3".into(), 3, "*C".into()));
+        }
+        other => panic!("unexpected result: {other:?}"),
+    }
+
+    let strict = records[0].clone().parse_smiles::<Smiles>().unwrap();
+    assert_eq!(strict.smiles(), &Smiles::from_str("CCO").unwrap());
+}
+
+#[test]
+fn csv_records_carry_the_line_where_the_record_starts() {
+    let directory = tempdir().unwrap();
+    let dataset_path = directory.path().join("coconut_csv-08-2026.csv");
+    fs::write(
+        &dataset_path,
+        "identifier,canonical_smiles,name\n\
+         CNP000001,CCO,\"ethanol\nethyl alcohol\"\n\
+         CNP000002,C(,broken\n",
+    )
+    .unwrap();
+    let artifact = uncompressed_artifact("coconut-smiles", dataset_path);
+
+    let lines = DatasetSmilesRecordIter::for_coconut(&artifact)
+        .unwrap()
+        .map(|record| record.map(|record| record.line_number()))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(lines, [2, 4]);
 }

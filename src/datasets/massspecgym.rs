@@ -1,6 +1,6 @@
 use super::{
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
-    source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource},
+    reader::DatasetSmilesRecordIter,
+    source::{DatasetSource, SmilesDatasetRecordSource},
     types::{DatasetError, DatasetFetchOptions},
 };
 
@@ -22,15 +22,6 @@ impl DatasetSource for MassSpecGymSmiles {
 
     fn file_name(&self) -> &'static str {
         "MassSpecGym.tsv"
-    }
-}
-
-impl SmilesDatasetSource for MassSpecGymSmiles {
-    fn iter_smiles_with_options(
-        &self,
-        options: &DatasetFetchOptions,
-    ) -> Result<DatasetSmilesIter, DatasetError> {
-        Ok(DatasetSmilesIter::from_records(self.iter_records_with_options(options)?))
     }
 }
 

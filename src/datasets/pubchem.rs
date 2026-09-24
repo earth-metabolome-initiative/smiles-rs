@@ -1,6 +1,6 @@
 use super::{
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
-    source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource},
+    reader::DatasetSmilesRecordIter,
+    source::{DatasetSource, SmilesDatasetRecordSource},
     types::{DatasetCompression, DatasetError, DatasetFetchOptions},
 };
 
@@ -30,15 +30,6 @@ impl DatasetSource for PubChemSmiles {
 
     fn compression(&self) -> DatasetCompression {
         DatasetCompression::Gzip
-    }
-}
-
-impl SmilesDatasetSource for PubChemSmiles {
-    fn iter_smiles_with_options(
-        &self,
-        options: &DatasetFetchOptions,
-    ) -> Result<DatasetSmilesIter, DatasetError> {
-        Ok(DatasetSmilesIter::from_records(self.iter_records_with_options(options)?))
     }
 }
 

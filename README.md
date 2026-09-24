@@ -34,5 +34,5 @@ assert_eq!(formula.to_string(), "C₂H₆O");
 
 | Feature | Effect |
 | ------- | ------ |
-| `datasets` | Streams PubChem, ZINC20, COCONUT, LOTUS and MassSpecGym from a local cache, requires `std`. See [`datasets`](https://docs.rs/smiles-rs/latest/smiles_rs/datasets/). |
+| `datasets` | Streams PubChem, ZINC20, COCONUT, LOTUS and MassSpecGym from a local cache, as text or parsed into `Smiles` or `WildcardSmiles`, requires `std`. See [`datasets`](https://docs.rs/smiles-rs/latest/smiles_rs/datasets/). |
 | `fuzzing` | Exposes the parser internals the fuzz targets drive. |

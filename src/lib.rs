@@ -22,11 +22,10 @@ pub mod token;
 #[cfg(feature = "datasets")]
 pub use crate::datasets::{
     ArchiveMode, CacheMode, DatasetArtifact, DatasetCollectionArtifact, DatasetCollectionSource,
-    DatasetCompression, DatasetError, DatasetFetchOptions, DatasetFile, DatasetSmilesIter,
-    DatasetSmilesRecord, DatasetSmilesRecordIter, DatasetSource, LOTUS_SMILES, LotusSmiles,
-    MASS_SPEC_GYM_SMILES, MassSpecGymSmiles, PUBCHEM_SMILES, PubChemSmiles,
-    SmilesDatasetRecordSource, SmilesDatasetSource, ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES,
-    Zinc20Smiles, default_dataset_cache_dir,
+    DatasetCompression, DatasetError, DatasetFetchOptions, DatasetFile, DatasetSmilesRecord,
+    DatasetSmilesRecordIter, DatasetSource, LOTUS_SMILES, LotusSmiles, MASS_SPEC_GYM_SMILES,
+    MassSpecGymSmiles, PUBCHEM_SMILES, PubChemSmiles, SmilesDatasetRecordSource,
+    ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES, Zinc20Smiles, default_dataset_cache_dir,
 };
 pub use crate::{
     errors::{RootError, SmilesError, SmilesErrorWithSpan, SubgraphError},
@@ -49,10 +48,10 @@ pub mod prelude {
     pub use crate::{
         ArchiveMode, CacheMode, DatasetArtifact, DatasetCollectionArtifact,
         DatasetCollectionSource, DatasetCompression, DatasetError, DatasetFetchOptions,
-        DatasetFile, DatasetSmilesIter, DatasetSmilesRecord, DatasetSmilesRecordIter,
-        DatasetSource, LOTUS_SMILES, LotusSmiles, MASS_SPEC_GYM_SMILES, MassSpecGymSmiles,
-        PUBCHEM_SMILES, PubChemSmiles, SmilesDatasetRecordSource, SmilesDatasetSource,
-        ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES, Zinc20Smiles, default_dataset_cache_dir,
+        DatasetFile, DatasetSmilesRecord, DatasetSmilesRecordIter, DatasetSource, LOTUS_SMILES,
+        LotusSmiles, MASS_SPEC_GYM_SMILES, MassSpecGymSmiles, PUBCHEM_SMILES, PubChemSmiles,
+        SmilesDatasetRecordSource, ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES, Zinc20Smiles,
+        default_dataset_cache_dir,
     };
     pub use crate::{
         AromaticityAssignment, AromaticityAssignmentApplicationError, AromaticityDiagnostic,

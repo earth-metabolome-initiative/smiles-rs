@@ -1,10 +1,13 @@
 use alloc::{string::String, vec::Vec};
+use core::str::FromStr;
 use std::{
     io,
     path::{Path, PathBuf},
 };
 
 use thiserror::Error;
+
+use crate::errors::SmilesErrorWithSpan;
 
 /// Compression used by the upstream dataset artifact.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -319,20 +322,37 @@ pub enum DatasetError {
         /// A human-readable explanation of the invalid selection.
         message: String,
     },
+    /// A record's SMILES was rejected by the grammar the caller parsed it with.
+    #[error(
+        "failed to parse SMILES of record {} at line {}: {source}",
+        record.id(),
+        record.line_number()
+    )]
+    Smiles {
+        /// The rejected record, whose SMILES text
+        /// [`SmilesErrorWithSpan::render`] can annotate.
+        record: DatasetSmilesRecord,
+        /// The parse error, spanned within the record's SMILES.
+        #[source]
+        source: SmilesErrorWithSpan,
+    },
 }
 
-/// One SMILES record from a dataset.
+/// One record from a dataset, holding its SMILES as text by default or as a
+/// graph once parsed through [`DatasetSmilesRecord::parse_smiles`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DatasetSmilesRecord {
+pub struct DatasetSmilesRecord<S = String> {
     id: String,
-    smiles: String,
+    line_number: usize,
+    smiles: S,
 }
 
-impl DatasetSmilesRecord {
-    /// Creates a dataset SMILES record.
+impl<S> DatasetSmilesRecord<S> {
+    /// Creates a dataset SMILES record that starts at the 1-based
+    /// `line_number` of its dataset file.
     #[must_use]
-    pub fn new(id: String, smiles: String) -> Self {
-        Self { id, smiles }
+    pub fn new(id: String, line_number: usize, smiles: S) -> Self {
+        Self { id, line_number, smiles }
     }
 
     /// Returns the dataset-specific record identifier.
@@ -341,15 +361,59 @@ impl DatasetSmilesRecord {
         &self.id
     }
 
-    /// Returns the SMILES string.
+    /// Returns the 1-based line where the record starts in its dataset file.
     #[must_use]
-    pub fn smiles(&self) -> &str {
+    pub fn line_number(&self) -> usize {
+        self.line_number
+    }
+
+    /// Returns the SMILES.
+    #[must_use]
+    pub fn smiles(&self) -> &S {
         &self.smiles
     }
 
-    /// Consumes the record and returns its SMILES string.
+    /// Consumes the record and returns its SMILES.
     #[must_use]
-    pub fn into_smiles(self) -> String {
+    pub fn into_smiles(self) -> S {
         self.smiles
+    }
+}
+
+impl DatasetSmilesRecord {
+    /// Parses the SMILES as `S`, which picks the grammar.
+    ///
+    /// `S` is [`Smiles`](crate::smiles::Smiles) to reject wildcard (`*`) atoms
+    /// or [`WildcardSmiles`](crate::smiles::WildcardSmiles) to accept them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DatasetError::Smiles`] holding this record when `S` rejects
+    /// its SMILES.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use smiles_rs::{
+    ///     datasets::{DatasetSmilesRecord, PUBCHEM_SMILES, SmilesDatasetRecordSource},
+    ///     smiles::WildcardSmiles,
+    /// };
+    ///
+    /// for record in PUBCHEM_SMILES.iter_records()? {
+    ///     let record = record?.parse_smiles::<WildcardSmiles>()?;
+    ///     println!("{} has {} atoms", record.id(), record.smiles().nodes().len());
+    /// }
+    /// # Ok::<(), smiles_rs::DatasetError>(())
+    /// ```
+    pub fn parse_smiles<S>(self) -> Result<DatasetSmilesRecord<S>, DatasetError>
+    where
+        S: FromStr<Err = SmilesErrorWithSpan>,
+    {
+        match self.smiles.parse() {
+            Ok(smiles) => {
+                Ok(DatasetSmilesRecord { id: self.id, line_number: self.line_number, smiles })
+            }
+            Err(source) => Err(DatasetError::Smiles { record: self, source }),
+        }
     }
 }

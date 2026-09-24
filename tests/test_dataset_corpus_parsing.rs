@@ -12,9 +12,9 @@ use std::{
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use smiles_rs::prelude::{
-    ArchiveMode, CacheMode, DatasetFetchOptions, DatasetSmilesRecord, PUBCHEM_SMILES, Smiles,
-    SmilesDatasetRecordSource, WildcardSmiles, ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES,
-    Zinc20Smiles,
+    ArchiveMode, CacheMode, DatasetFetchOptions, DatasetSmilesRecord, DatasetSmilesRecordIter,
+    PUBCHEM_SMILES, Smiles, SmilesDatasetRecordSource, WildcardSmiles,
+    ZINC20_EXPECTED_RECORD_COUNT, ZINC20_SMILES, Zinc20Smiles,
 };
 
 #[test]
@@ -63,7 +63,7 @@ fn validate_zinc20_parsing_corpus() -> Result<(), Box<dyn std::error::Error>> {
 
 fn validate_records(
     label: &str,
-    records: impl Iterator<Item = Result<DatasetSmilesRecord, smiles_rs::DatasetError>> + Send,
+    records: DatasetSmilesRecordIter,
     limit: Option<usize>,
     expected_records: Option<usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {

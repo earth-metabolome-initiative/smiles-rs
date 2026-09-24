@@ -1,6 +1,6 @@
 use super::{
-    reader::{DatasetSmilesIter, DatasetSmilesRecordIter},
-    source::{DatasetSource, SmilesDatasetRecordSource, SmilesDatasetSource},
+    reader::DatasetSmilesRecordIter,
+    source::{DatasetSource, SmilesDatasetRecordSource},
     types::{DatasetCompression, DatasetError, DatasetFetchOptions},
 };
 /// The official COCONUT natural-products containing a `smiles` column.
@@ -29,15 +29,6 @@ impl DatasetSource for CoconutSmiles {
 
     fn compression(&self) -> DatasetCompression {
         DatasetCompression::Zip
-    }
-}
-
-impl SmilesDatasetSource for CoconutSmiles {
-    fn iter_smiles_with_options(
-        &self,
-        options: &DatasetFetchOptions,
-    ) -> Result<DatasetSmilesIter, DatasetError> {
-        Ok(DatasetSmilesIter::from_records(self.iter_records_with_options(options)?))
     }
 }
 
