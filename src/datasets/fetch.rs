@@ -170,6 +170,8 @@ where
     let was_downloaded = options.cache_mode == CacheMode::Redownload || !compressed_path.is_file();
 
     if was_downloaded {
+        let progress_bar = new_byte_progress_bar(Some(file.size), &progress_label("downloading", &compressed_path));
+
         runtime
             .block_on(client.download_record_file_by_key_to_path(
                 latest_record.id,
@@ -177,6 +179,8 @@ where
                 &compressed_path,
             ))
             .map_err(|error| DatasetError::Zenodo { message: error.to_string() })?;
+
+        progress_bar.finish_and_clear();
     }
 
     let decompressed_path = dataset_dir.join(dataset.extracted_file_name());
