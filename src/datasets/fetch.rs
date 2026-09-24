@@ -170,7 +170,10 @@ where
     let was_downloaded = options.cache_mode == CacheMode::Redownload || !compressed_path.is_file();
 
     if was_downloaded {
-        let progress_bar = new_byte_progress_bar(Some(file.size), &progress_label("downloading", &compressed_path));
+        let progress_bar = new_byte_progress_bar(
+            Some(file.size),
+            &progress_label("downloading", &compressed_path),
+        );
 
         runtime
             .block_on(client.download_record_file_by_key_to_path(
