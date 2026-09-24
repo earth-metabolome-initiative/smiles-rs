@@ -799,8 +799,9 @@ fn lotus_record_iterator_rejects_malformed_rows() {
 #[test]
 #[ignore = "requires network access to Zenodo"]
 fn lotus_latest_dataset_has_unique_inchi_keys() {
-    use crate::alloc::borrow::ToOwned;
     use std::collections::HashSet;
+
+    use crate::alloc::borrow::ToOwned;
 
     let directory = tempdir().unwrap();
 
@@ -817,11 +818,7 @@ fn lotus_latest_dataset_has_unique_inchi_keys() {
     for record in records {
         let record = record.unwrap();
 
-        assert!(
-            seen.insert(record.id().to_owned()),
-            "duplicate LOTUS InChIKey: {}",
-            record.id()
-        );
+        assert!(seen.insert(record.id().to_owned()), "duplicate LOTUS InChIKey: {}", record.id());
     }
 
     assert!(!seen.is_empty());
