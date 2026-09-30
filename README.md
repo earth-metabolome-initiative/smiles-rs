@@ -3,7 +3,7 @@
 [![docs.rs](https://img.shields.io/docsrs/smiles-rs)](https://docs.rs/smiles-rs)
 [![downloads](https://img.shields.io/crates/d/smiles-rs.svg)](https://crates.io/crates/smiles-rs)
 [![Rust CI](https://github.com/earth-metabolome-initiative/smiles-rs/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/earth-metabolome-initiative/smiles-rs/actions/workflows/rust.yml)
-[![codecov](https://codecov.io/gh/earth-metabolome-initiative/smiles-rs/graph/badge.svg)](https://codecov.io/gh/earth-metabolome-initiative/smiles-rs)
+[![codecov](https://codecov.io/gh/earth-metabolome-initiative/smiles-rs/graph/badge.svg?token=kp433tS6EN)](https://codecov.io/gh/earth-metabolome-initiative/smiles-rs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/earth-metabolome-initiative/smiles-rs/blob/main/LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.92%2B-orange.svg)](https://blog.rust-lang.org/)
 
