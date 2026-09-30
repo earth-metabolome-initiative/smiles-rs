@@ -223,7 +223,8 @@ fn assert_normal_form_chemistry_invariants(
 }
 
 type TetrahedralStereoSignature = ((u8, u8), Vec<CanonicalStereoNeighborKey>);
-type DoubleBondStereoSignature = ([usize; 2], [(usize, usize); 2], DoubleBondStereoConfig);
+type DoubleBondStereoEntry = ([usize; 2], [(usize, usize); 2], DoubleBondStereoConfig);
+type DoubleBondStereoSignature = Vec<Vec<DoubleBondStereoEntry>>;
 
 fn tetrahedral_stereo_signature(
     smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
@@ -285,35 +286,40 @@ fn tetrahedral_stereo_signature(
     signature
 }
 
+// Component-local ranks, as stereo normalization may reorder components.
 fn double_bond_stereo_signature(
     smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
-) -> Vec<DoubleBondStereoSignature> {
+) -> DoubleBondStereoSignature {
     let labeling = smiles.stereo_neutral_canonical_labeling();
-    let mut signature = smiles
-        .double_bond_stereo_records()
-        .into_iter()
-        .map(|record| {
-            let mut endpoints = [
-                labeling.new_index_of_old_node()[record.side_a().endpoint()],
-                labeling.new_index_of_old_node()[record.side_b().endpoint()],
-            ];
-            endpoints.sort_unstable();
+    let components = smiles.connected_components();
+    let mut next_local_rank = vec![0_usize; components.number_of_components()];
+    let mut local_rank = vec![0_usize; smiles.nodes().len()];
+    for &node_id in labeling.order() {
+        let rank = &mut next_local_rank[components.component_of_node(node_id)];
+        local_rank[node_id] = *rank;
+        *rank += 1;
+    }
 
-            let mut sides = [
-                (
-                    labeling.new_index_of_old_node()[record.side_a().endpoint()],
-                    labeling.new_index_of_old_node()[record.side_a().reference_atom()],
-                ),
-                (
-                    labeling.new_index_of_old_node()[record.side_b().endpoint()],
-                    labeling.new_index_of_old_node()[record.side_b().reference_atom()],
-                ),
-            ];
-            sides.sort_unstable();
-
-            (endpoints, sides, record.config())
-        })
-        .collect::<Vec<_>>();
+    let mut signature = vec![Vec::new(); components.number_of_components()];
+    for record in smiles.double_bond_stereo_records() {
+        let (side_a, side_b) = (record.side_a(), record.side_b());
+        let mut endpoints = [local_rank[side_a.endpoint()], local_rank[side_b.endpoint()]];
+        endpoints.sort_unstable();
+        let mut sides = [
+            (local_rank[side_a.endpoint()], local_rank[side_a.reference_atom()]),
+            (local_rank[side_b.endpoint()], local_rank[side_b.reference_atom()]),
+        ];
+        sides.sort_unstable();
+        signature[components.component_of_node(side_a.endpoint())].push((
+            endpoints,
+            sides,
+            record.config(),
+        ));
+    }
+    signature.retain(|entries| !entries.is_empty());
+    for entries in &mut signature {
+        entries.sort_unstable();
+    }
     signature.sort_unstable();
     signature
 }
