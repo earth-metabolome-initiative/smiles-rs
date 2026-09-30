@@ -5,7 +5,6 @@ tests/CID-SMILES
 fuzzer_pub_chem_corpus/
 tests/fixtures/*.tsv.gz
 *.log
-fuzz/corpus
 mutants.out/
 mutants.out.old/
 pr.diff
