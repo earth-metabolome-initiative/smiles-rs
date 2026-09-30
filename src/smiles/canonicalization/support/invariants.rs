@@ -579,3 +579,16 @@ pub(crate) fn assert_canonicalization_invariants(
         same_canonicalization_state(&canonicalized, &permuted_canonicalized);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::double_bond_stereo_signature;
+    use crate::smiles::Smiles;
+
+    #[test]
+    fn double_bond_stereo_signature_tells_which_bond_is_e() {
+        let signature =
+            |source: &str| double_bond_stereo_signature(&source.parse::<Smiles>().unwrap());
+        assert_ne!(signature("F/C=C/C=C\\Cl"), signature("F/C=C\\C=C\\Cl"));
+    }
+}
