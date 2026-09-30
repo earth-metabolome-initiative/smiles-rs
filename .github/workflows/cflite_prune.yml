@@ -25,5 +25,5 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fuzz-seconds: 600
           mode: prune
-          storage-repo: ${{ github.server_url }}/${{ github.repository }}.git
+          storage-repo: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           storage-repo-branch: fuzz-corpus
