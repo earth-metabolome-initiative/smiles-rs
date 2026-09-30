@@ -32,5 +32,5 @@ jobs:
           fuzz-seconds: 3600
           mode: batch
           sanitizer: ${{ matrix.sanitizer }}
-          storage-repo: ${{ github.server_url }}/${{ github.repository }}.git
+          storage-repo: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           storage-repo-branch: fuzz-corpus
