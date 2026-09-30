@@ -46,6 +46,13 @@ fn double_bond_stereo_invariant_survives_component_reordering_regression() {
 }
 
 #[test]
+fn kekulization_invariant_holds_for_four_membered_aromatic_rings_regression() {
+    for source in ["Co1ccc1O", "ccc1ccc1cc"] {
+        assert_canonicalization_invariants(&Smiles::from_str(source).unwrap());
+    }
+}
+
+#[test]
 fn canonicalize_preserves_aromatic_triple_bond_order() {
     let smiles = Smiles::from_str("C1=CC#CC=C1").unwrap();
     let canonicalized = smiles.canonicalize();
