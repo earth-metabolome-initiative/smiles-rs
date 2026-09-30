@@ -104,6 +104,20 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// [`AromaticityPerception::kekulize_with`](super::AromaticityPerception::kekulize_with)
     /// or [`AromaticityPerception::kekulize_standalone`](super::AromaticityPerception::kekulize_standalone).
     pub fn kekulize_with(&self, mode: KekulizationMode) -> Result<Self, KekulizationError> {
+        self.kekulize_with_candidate_order(mode, CandidateOrder::Canonical)
+    }
+
+    /// Standalone kekulization matched in the current node order, for graphs
+    /// already in exact canonical order.
+    pub(super) fn kekulize_standalone_in_current_order(&self) -> Result<Self, KekulizationError> {
+        self.kekulize_with_candidate_order(KekulizationMode::Standalone, CandidateOrder::NodeId)
+    }
+
+    fn kekulize_with_candidate_order(
+        &self,
+        mode: KekulizationMode,
+        order: CandidateOrder,
+    ) -> Result<Self, KekulizationError> {
         let aromatic_bonds = self
             .bond_matrix()
             .sparse_entries()
@@ -132,7 +146,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             return Ok(clear_aromatic_flags(self));
         }
 
-        let candidate_atom_ids = candidate_atom_ids(self);
+        let mut candidate_atom_ids = candidate_atom_ids(self);
+        // Gabow's matching follows candidate numbering, so use canonical rank.
+        if order == CandidateOrder::Canonical {
+            let labeling = self.exact_canonical_labeling();
+            let rank = labeling.new_index_of_old_node();
+            candidate_atom_ids.sort_unstable_by_key(|&atom_id| rank[atom_id]);
+        }
         if has_unlocalizable_aromatic_component(
             self.nodes().len(),
             &aromatic_bonds,
@@ -194,6 +214,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// localized from their current state alone, such as some dummy-atom
     /// aromatic systems, return an error instead of guessing a bond pattern.
     ///
+    /// The chosen Kekule structure depends only on the molecule, not on the
+    /// order of its atoms.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -211,6 +234,12 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     pub fn kekulize_standalone(&self) -> Result<Self, KekulizationError> {
         self.kekulize_with(KekulizationMode::Standalone)
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CandidateOrder {
+    Canonical,
+    NodeId,
 }
 
 #[derive(Clone, Copy)]
@@ -244,7 +273,7 @@ impl KekulizationCandidateGraph {
             else {
                 continue;
             };
-            local_edges.push((local_a, local_b, (node_a, node_b)));
+            local_edges.push((local_a.min(local_b), local_a.max(local_b), (node_a, node_b)));
         }
 
         if local_edges.len() > 1 {
@@ -989,5 +1018,18 @@ mod tests {
         assert_fuzz_roundtrip_regression_for_all_policies(
             "*2*CPPPPO$OPPPPPPPPPPPPO$3PPPPPPPPPPPPPPPPPO$3PPPPP**31$*2PPPPP=PPPPPP2*1*=13-**12*",
         );
+    }
+
+    #[test]
+    fn standalone_kekulization_is_independent_of_atom_order() {
+        for source in ["ccc1ccc1cc", "Co1ccc1O"] {
+            let smiles = Smiles::from_str(source).unwrap();
+            let kekule = |s: &Smiles| s.kekulize_standalone().unwrap().canonicalize().render();
+            let expected = kekule(&smiles);
+            for root in 0..smiles.nodes().len() {
+                let reordered = Smiles::from_str(&smiles.render_rooted(root)).unwrap();
+                assert_eq!(kekule(&reordered), expected, "{source} rooted at {root}");
+            }
+        }
     }
 }

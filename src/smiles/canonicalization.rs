@@ -83,7 +83,7 @@ impl SmilesCanonicalLabeling {
 }
 
 impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
-    fn exact_canonical_labeling(&self) -> SmilesCanonicalLabeling {
+    pub(super) fn exact_canonical_labeling(&self) -> SmilesCanonicalLabeling {
         self.canonical_labeling_with(Self::exact_canonical_labeling_whole_graph)
     }
 
@@ -206,7 +206,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         }
 
         canonicalized
-            .kekulize_standalone()
+            .kekulize_standalone_in_current_order()
             .ok()
             .map(|kekulized| kekulized.canonicalize_from_current_bond_orders())
             .unwrap_or(canonicalized)
