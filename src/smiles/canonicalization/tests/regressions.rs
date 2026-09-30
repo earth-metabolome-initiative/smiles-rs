@@ -39,6 +39,13 @@ fn canonicalize_handles_wildcard_quadruple_bond_regression() {
 }
 
 #[test]
+fn double_bond_stereo_invariant_survives_component_reordering_regression() {
+    let smiles = wildcard_smiles("*[*@]*.F/C=*/*");
+
+    assert_canonicalization_invariants(&smiles);
+}
+
+#[test]
 fn canonicalize_preserves_aromatic_triple_bond_order() {
     let smiles = Smiles::from_str("C1=CC#CC=C1").unwrap();
     let canonicalized = smiles.canonicalize();
