@@ -352,7 +352,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                         bond,
                         parent_id,
                         node_id,
-                        false,
                     )
                 });
 
@@ -371,7 +370,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                             edge.descriptor(),
                             node_id,
                             child,
-                            false,
                         ),
                     }
                 })
@@ -576,7 +574,6 @@ fn build_labeled_closures_impl<AtomPolicy: SmilesAtomPolicy>(
                     draft.edge.descriptor(),
                     node_id,
                     draft.partner,
-                    true,
                 ),
                 emit_bond_symbol: is_closing,
             });
@@ -662,7 +659,6 @@ fn planned_bond_for_emit<AtomPolicy: SmilesAtomPolicy>(
     descriptor: BondDescriptor,
     from: usize,
     to: usize,
-    is_closure: bool,
 ) -> BondDescriptor {
     let normalized = normalized_bond_for_emit(descriptor.bond(), from, to);
     if matches!(normalized, Bond::Single | Bond::Up | Bond::Down)
@@ -673,8 +669,7 @@ fn planned_bond_for_emit<AtomPolicy: SmilesAtomPolicy>(
 
     let bond = match normalized {
         Bond::Up | Bond::Down
-            if !is_closure
-                && preserve_raw_directional_single(smiles, directional_overrides, from, to) =>
+            if preserve_raw_directional_single(smiles, directional_overrides, from, to) =>
         {
             normalized
         }
