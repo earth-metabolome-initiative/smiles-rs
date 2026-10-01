@@ -357,7 +357,37 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             parsed_stereo_neighbors,
             implicit_hydrogen_cache: Vec::new(),
+            radical_electrons: None,
             kekulization_source,
+            atom_policy: PhantomData,
+        };
+        smiles.implicit_hydrogen_cache = smiles.recompute_implicit_hydrogen_counts();
+        smiles
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) fn from_bond_matrix_parts_with_parsed_stereo_and_radicals(
+        atom_nodes: Vec<Atom>,
+        bond_matrix: BondMatrix,
+        parsed_stereo_neighbors: Vec<Vec<super::StereoNeighbor>>,
+        radical_electrons: Option<Vec<u8>>,
+    ) -> Self {
+        debug_assert_eq!(atom_nodes.len(), parsed_stereo_neighbors.len());
+        if let Some(counts) = &radical_electrons {
+            debug_assert_eq!(
+                atom_nodes.len(),
+                counts.len(),
+                "radical electron count length must match atom count"
+            );
+        }
+        let mut smiles = Self {
+            atom_nodes,
+            bond_matrix,
+            parsed_stereo_neighbors,
+            implicit_hydrogen_cache: Vec::new(),
+            radical_electrons,
+            kekulization_source: None,
             atom_policy: PhantomData,
         };
         smiles.implicit_hydrogen_cache = smiles.recompute_implicit_hydrogen_counts();
@@ -371,6 +401,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         bond_matrix: BondMatrix,
         parsed_stereo_neighbors: Vec<Vec<super::StereoNeighbor>>,
         implicit_hydrogen_cache: Vec<u8>,
+        radical_electrons: Option<Vec<u8>>,
         kekulization_source: Option<Box<Self>>,
     ) -> Self {
         debug_assert_eq!(atom_nodes.len(), parsed_stereo_neighbors.len());
@@ -379,6 +410,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             parsed_stereo_neighbors,
             implicit_hydrogen_cache,
+            radical_electrons,
             kekulization_source,
             atom_policy: PhantomData,
         };
@@ -387,6 +419,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             smiles.implicit_hydrogen_cache.len(),
             "implicit hydrogen cache length must match atom count",
         );
+        if let Some(counts) = &smiles.radical_electrons {
+            assert_eq!(
+                smiles.atom_nodes.len(),
+                counts.len(),
+                "radical electron count length must match atom count",
+            );
+        }
         smiles
     }
 

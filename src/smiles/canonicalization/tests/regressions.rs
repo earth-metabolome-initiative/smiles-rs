@@ -53,6 +53,13 @@ fn kekulization_invariant_holds_for_four_membered_aromatic_rings_regression() {
 }
 
 #[test]
+fn aromaticity_invariant_holds_for_radical_bracket_aromatic_atom_regression() {
+    let smiles = Smiles::from_str("cc1ncN[n]1").unwrap();
+
+    assert_canonicalization_invariants(&smiles);
+}
+
+#[test]
 fn canonicalize_preserves_aromatic_triple_bond_order() {
     let smiles = Smiles::from_str("C1=CC#CC=C1").unwrap();
     let canonicalized = smiles.canonicalize();

@@ -55,6 +55,8 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             return self.clone();
         }
 
+        let radical_electrons = self.radical_electron_counts();
+
         let preparation = self.stereo_normalization_preparation();
         let new_index_of_old_node = &preparation.new_index_of_old_node;
         let refined_classes = &preparation.refined_classes;
@@ -77,6 +79,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             rooted_classes,
             refined_classes,
             &atom_based_double_bond_normalization,
+            &radical_electrons,
         );
 
         let atom_nodes = normalized_atom_rows.iter().map(|(atom, _)| *atom).collect::<Vec<_>>();
@@ -123,10 +126,11 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 .unwrap_or_else(|_| unreachable!("stereo normalization preserves a simple graph"));
         }
 
-        Self::from_bond_matrix_parts_with_parsed_stereo(
+        Self::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
             atom_nodes,
             builder.finish(self.nodes().len()),
             parsed_stereo_neighbors,
+            Some(radical_electrons.to_vec()),
         )
     }
 
@@ -136,6 +140,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         rooted_classes: &[usize],
         refined_classes: &[usize],
         atom_based_double_bond_normalization: &AtomBasedDoubleBondNormalization,
+        radical_electrons: &[u8],
     ) -> Vec<(Atom, Vec<StereoNeighbor>)> {
         self.atom_nodes
             .iter()
@@ -147,7 +152,12 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 if atom_based_double_bond_normalization.clear_chirality[node_id] {
                     let cleared = atom_with_chirality(atom, None);
                     return (
-                        maybe_collapse_atom_to_organic_subset(self, node_id, cleared),
+                        maybe_collapse_atom_to_organic_subset(
+                            self,
+                            node_id,
+                            cleared,
+                            radical_electrons,
+                        ),
                         Vec::new(),
                     );
                 }
@@ -175,7 +185,12 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 let normalized_atom = atom_with_chirality(atom, normalized_chirality);
                 (
                     if chirality.is_some() && normalized_chirality.is_none() {
-                        maybe_collapse_atom_to_organic_subset(self, node_id, normalized_atom)
+                        maybe_collapse_atom_to_organic_subset(
+                            self,
+                            node_id,
+                            normalized_atom,
+                            radical_electrons,
+                        )
                     } else {
                         normalized_atom
                     },

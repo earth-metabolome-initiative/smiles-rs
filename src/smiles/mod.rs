@@ -20,7 +20,7 @@
 //!
 //! # Ok::<(), smiles_rs::errors::SmilesErrorWithSpan>(())
 //! ```
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 use core::{fmt, marker::PhantomData};
 
 use elements_rs::Element;
@@ -371,6 +371,7 @@ pub struct Smiles<AtomPolicy = ConcreteAtoms> {
     bond_matrix: BondMatrix,
     parsed_stereo_neighbors: Vec<Vec<StereoNeighbor>>,
     implicit_hydrogen_cache: Vec<u8>,
+    radical_electrons: Option<Vec<u8>>,
     kekulization_source: Option<Box<Self>>,
     atom_policy: PhantomData<fn() -> AtomPolicy>,
 }
@@ -418,8 +419,19 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix: BondMatrix::default(),
             parsed_stereo_neighbors: Vec::new(),
             implicit_hydrogen_cache: Vec::new(),
+            radical_electrons: None,
             kekulization_source: None,
             atom_policy: PhantomData,
+        }
+    }
+
+    /// Returns the per-atom radical electron counts, computing them from the
+    /// current graph when no sidecar is stored.
+    #[must_use]
+    pub(crate) fn radical_electron_counts(&self) -> Cow<'_, [u8]> {
+        match &self.radical_electrons {
+            Some(counts) => Cow::Borrowed(counts.as_slice()),
+            None => Cow::Owned(self::aromaticity::stored_radical_electrons(self)),
         }
     }
 
@@ -473,6 +485,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             parsed_stereo_neighbors,
             implicit_hydrogen_cache,
+            radical_electrons,
             kekulization_source,
             atom_policy: _,
         } = self;
@@ -481,6 +494,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             parsed_stereo_neighbors,
             implicit_hydrogen_cache,
+            radical_electrons,
             kekulization_source: kekulization_source
                 .map(|source| Box::new((*source).into_atom_policy())),
             atom_policy: PhantomData,
@@ -992,6 +1006,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             parsed_stereo_neighbors: self.parsed_stereo_neighbors.clone(),
             implicit_hydrogen_cache: self.implicit_hydrogen_cache.clone(),
+            radical_electrons: self.radical_electrons.clone(),
             kekulization_source: self.kekulization_source.clone(),
             atom_policy: PhantomData,
         }
@@ -1006,9 +1021,10 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// hydrogen count is cleared.
     ///
     /// Existing heavy-atom bonds, charges, classes, and chirality tags are
-    /// preserved. Stereo-neighbor rows are rewritten so chiral `[XH]` centers
-    /// point at the new hydrogen nodes instead of keeping an
-    /// `ExplicitHydrogen` placeholder.
+    /// preserved. Radical electron counts are carried over to the parent
+    /// atoms, and the added hydrogens carry none. Stereo-neighbor rows are
+    /// rewritten so chiral `[XH]` centers point at the new hydrogen nodes
+    /// instead of keeping an `ExplicitHydrogen` placeholder.
     ///
     /// # Examples
     ///
@@ -1097,11 +1113,15 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             }),
         );
 
+        let mut radical_electrons = self.radical_electron_counts().to_vec();
+        radical_electrons.resize(original_atom_count + total_added_hydrogens, 0);
+
         Self::from_bond_matrix_parts_with_sidecars(
             atom_nodes,
             bond_matrix,
             parsed_stereo_neighbors,
             vec![0; original_atom_count + total_added_hydrogens],
+            Some(radical_electrons),
             None,
         )
     }
@@ -1114,6 +1134,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix: self.bond_matrix.clone(),
             parsed_stereo_neighbors: self.parsed_stereo_neighbors.clone(),
             implicit_hydrogen_cache: self.implicit_hydrogen_cache.clone(),
+            radical_electrons: self.radical_electrons.clone(),
             kekulization_source: None,
             atom_policy: PhantomData,
         }
@@ -1214,7 +1235,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// Returns a copy with isomeric features removed: isotope labels and
     /// tetrahedral chirality are cleared on every atom, and directional
     /// (double-bond stereo) bonds are flattened to plain bonds. Implicit
-    /// hydrogen counts are recomputed for the result.
+    /// hydrogen counts are recomputed for the result, while radical electron
+    /// counts are kept from the source.
     ///
     /// This mirrors RDKit's `isomericSmiles=False`: two graphs that differ only
     /// in stereochemistry or isotope labeling collapse to the same molecule.
@@ -1244,11 +1266,11 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
                 .unwrap_or_else(|_| unreachable!("non-isomeric copy preserves a simple graph"));
         }
         let parsed_stereo_neighbors = vec![Vec::new(); atom_nodes.len()];
-        let result = Self::from_bond_matrix_parts_with_parsed_stereo_and_source(
+        let result = Self::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
             atom_nodes,
             builder.finish(self.atom_nodes.len()),
             parsed_stereo_neighbors,
-            None,
+            Some(self.radical_electron_counts().to_vec()),
         );
         // Clearing isotope and stereo can leave an atom bracketed for a reason
         // that no longer applies (e.g. `[13CH3]` -> `[CH3]`). Collapse such

@@ -337,8 +337,8 @@ impl RdkitAtomAromContext {
         smiles: &Smiles<AtomPolicy>,
         ring_membership: &RingMembership,
         implicit_hydrogen_overrides: &HashMap<usize, u8>,
-        radical_electrons: &[u8],
         atom_id: usize,
+        radical_electrons: &[u8],
     ) -> Self {
         let atom = &smiles.nodes()[atom_id];
         let element = atom.element();
@@ -434,15 +434,15 @@ impl RdkitDefaultElectronModel {
         ring_membership: &RingMembership,
         implicit_hydrogen_overrides: &HashMap<usize, u8>,
     ) -> Vec<RdkitPerAtomAromaticityState> {
-        let radical_electrons = assign_radicals(smiles);
         let mut atom_states = vec![RdkitPerAtomAromaticityState::default(); smiles.nodes().len()];
+        let radical_electrons = smiles.radical_electron_counts();
         for atom_id in ring_membership.atom_ids().iter().copied() {
             let context = RdkitAtomAromContext::build(
                 smiles,
                 ring_membership,
                 implicit_hydrogen_overrides,
-                &radical_electrons,
                 atom_id,
+                &radical_electrons,
             );
             let donor_type = Self::donor_type(&context, flavor.exocyclic_bonds_steal_electrons());
             let candidate = Self::is_candidate(&context, donor_type, flavor.candidate_rules());
@@ -1495,13 +1495,43 @@ fn rdkit_adjusted_default_valence(element: Element, formal_charge: i8) -> Option
     default_valence_for(adjusted_element, 0)
 }
 
-fn assign_radicals<AtomPolicy: SmilesAtomPolicy>(smiles: &Smiles<AtomPolicy>) -> Vec<u8> {
+pub(crate) fn assign_radicals<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+) -> Vec<u8> {
     smiles
         .nodes()
         .iter()
         .enumerate()
         .map(|(atom_id, atom)| assign_radicals_for_atom(smiles, atom_id, atom))
         .collect()
+}
+
+/// Computes the radical electron counts stored on a freshly built graph.
+///
+/// Counts are first derived with the RDKit rule on the graph as given, where
+/// aromatic bonds contribute their parsed bond order. RDKit assigns radicals
+/// after kekulization, so when an aromatic bracket atom picks up a nonzero
+/// count here, every count is recomputed from a standalone Kekule form. When
+/// kekulization is impossible, the as-given counts are kept.
+pub(crate) fn stored_radical_electrons<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+) -> Vec<u8> {
+    let direct = assign_radicals(smiles);
+    let needs_kekule = direct.iter().enumerate().any(|(atom_id, &count)| {
+        count != 0
+            && smiles
+                .node_by_id(atom_id)
+                .is_some_and(|atom| atom.is_bracket_atom() && atom.aromatic())
+    });
+    if !needs_kekule {
+        return direct;
+    }
+    let mut copy = smiles.clone();
+    copy.radical_electrons = Some(direct.clone());
+    match copy.kekulize_standalone() {
+        Ok(kekulized) => assign_radicals(&kekulized),
+        Err(_) => direct,
+    }
 }
 
 fn assign_radicals_for_atom<AtomPolicy: SmilesAtomPolicy>(
@@ -2054,7 +2084,7 @@ mod tests {
         RdkitAtomAromContext, RdkitConnectedSubsystemEvent, RdkitConnectedSubsystemQuery,
         RdkitConnectedSubsystemSearch, RdkitConnectedSubsystemState, RdkitDefaultContext,
         RdkitDefaultElectronModel, RdkitDefaultRingKind, RdkitFusedSubsystemBudget,
-        RdkitPreAromaticityNormalization, Smiles, assign_radicals, more_electronegative,
+        RdkitPreAromaticityNormalization, Smiles, more_electronegative,
     };
     use crate::bond::Bond;
 
@@ -2370,8 +2400,7 @@ mod tests {
     #[test]
     fn rdkit_default_assigns_radical_to_kekule_radical_gap_case() {
         let smiles: Smiles = "C1=CC(=CC=[C]1)[N+](=O)[O-]".parse().expect("valid radical gap case");
-        let radical_electrons = assign_radicals(&smiles);
-        assert_eq!(radical_electrons, vec![0, 0, 0, 0, 0, 1, 0, 0, 0]);
+        assert_eq!(&*smiles.radical_electron_counts(), [0, 0, 0, 0, 0, 1, 0, 0, 0]);
 
         let ring_membership = smiles.ring_membership();
         let implicit_hydrogen_overrides = HashMap::new();
@@ -2401,13 +2430,12 @@ mod tests {
         );
 
         let ring_membership = cleaned.smiles.ring_membership();
-        let radical_electrons = assign_radicals(&cleaned.smiles);
         let phosphorus_context = RdkitAtomAromContext::build(
             &cleaned.smiles,
             &ring_membership,
             &cleaned.implicit_hydrogen_overrides,
-            &radical_electrons,
             9,
+            &cleaned.smiles.radical_electron_counts(),
         );
         assert_eq!(phosphorus_context.degree, 3);
         assert_eq!(phosphorus_context.degree_plus_total_h, 3);

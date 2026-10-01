@@ -74,12 +74,17 @@ pub(crate) fn permute_smiles<AtomPolicy: SmilesAtomPolicy>(
 
     let implicit_hydrogen_cache =
         order.iter().copied().map(|old_node| smiles.implicit_hydrogen_cache[old_node]).collect();
+    let radical_electrons = smiles
+        .radical_electrons
+        .as_deref()
+        .map(|counts| order.iter().copied().map(|old_node| counts[old_node]).collect());
 
     Smiles::<AtomPolicy>::from_bond_matrix_parts_with_sidecars(
         atom_nodes,
         builder.finish(order.len()),
         parsed_stereo_neighbors,
         implicit_hydrogen_cache,
+        radical_electrons,
         None,
     )
 }
@@ -99,6 +104,11 @@ pub(crate) fn same_canonicalization_state(
     assert_eq!(
         left.implicit_hydrogen_cache, right.implicit_hydrogen_cache,
         "implicit_hydrogen_cache differs"
+    );
+    assert_eq!(
+        left.radical_electron_counts(),
+        right.radical_electron_counts(),
+        "radical_electrons differs"
     );
     let left_source = left.kekulization_source.as_deref().map(canonicalization_state_key);
     let right_source = right.kekulization_source.as_deref().map(canonicalization_state_key);
