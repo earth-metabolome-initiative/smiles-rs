@@ -184,7 +184,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 );
                 let normalized_atom = atom_with_chirality(atom, normalized_chirality);
                 (
-                    if chirality.is_some() && normalized_chirality.is_none() {
+                    if normalized_chirality.is_none() {
                         maybe_collapse_atom_to_organic_subset(
                             self,
                             node_id,
