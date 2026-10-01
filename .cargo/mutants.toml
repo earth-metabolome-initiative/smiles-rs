@@ -1,0 +1,11 @@
+# cargo-mutants configuration.
+#
+# datasets.rs and modules are network and IO glue whose tests are #[ignore]d and gated on
+# downloading PubChem, ZINC20, and other corpora, so they cannot be mutation tested in a
+# normal `cargo test` run. Excluding it keeps the gate fair: a pull request that
+# edits datasets.rs is not asked to kill mutants no offline test could ever
+# catch.
+exclude_globs = [
+    "src/datasets.rs",
+    "src/datasets/**/*.rs",
+]

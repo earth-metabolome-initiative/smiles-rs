@@ -1,0 +1,43 @@
+[package]
+name = "smiles-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.smiles-rs]
+path = ".."
+features = ["fuzzing"]
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aromaticity_kekulization_roundtrip"
+path = "fuzz_targets/aromaticity_kekulization_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canonicalization"
+path = "fuzz_targets/canonicalization.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rooted_render"
+path = "fuzz_targets/rooted_render.rs"
+test = false
+doc = false
+bench = false
