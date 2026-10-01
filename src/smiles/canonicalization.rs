@@ -169,11 +169,17 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         let implicit_hydrogen_cache =
             order.iter().copied().map(|old_node| self.implicit_hydrogen_cache[old_node]).collect();
 
+        let radical_electrons = self
+            .radical_electrons
+            .as_deref()
+            .map(|counts| order.iter().copied().map(|old_node| counts[old_node]).collect());
+
         Self::from_bond_matrix_parts_with_sidecars(
             atom_nodes,
             bond_matrix,
             parsed_stereo_neighbors,
             implicit_hydrogen_cache,
+            radical_electrons,
             None,
         )
     }
@@ -217,12 +223,15 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     }
 
     pub(super) fn canonicalization_spelling_normal_form(&self) -> Self {
+        let radical_electrons = self.radical_electron_counts();
         let atom_nodes = self
             .atom_nodes
             .iter()
             .copied()
             .enumerate()
-            .map(|(node_id, atom)| canonicalization_atom_spelling_normal_form(self, node_id, atom))
+            .map(|(node_id, atom)| {
+                canonicalization_atom_spelling_normal_form(self, node_id, atom, &radical_electrons)
+            })
             .collect::<Vec<_>>();
         if atom_nodes.is_empty() {
             return self.clone_without_kekulization_source();
@@ -245,6 +254,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             self.bond_matrix.clone(),
             self.parsed_stereo_neighbors.clone(),
             implicit_hydrogen_cache,
+            Some(radical_electrons.to_vec()),
             None,
         )
     }
@@ -286,6 +296,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             && self.bond_matrix == canonicalized.bond_matrix
             && self.parsed_stereo_neighbors == canonicalized.parsed_stereo_neighbors
             && self.implicit_hydrogen_cache == canonicalized.implicit_hydrogen_cache
+            && self.radical_electron_counts() == canonicalized.radical_electron_counts()
             && self.kekulization_source == canonicalized.kekulization_source
     }
 
@@ -424,10 +435,15 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             })
             .collect::<Vec<_>>();
 
-        Self::from_bond_matrix_parts_with_parsed_stereo(
+        let radical_electrons = self.radical_electron_counts();
+        let radical_electrons =
+            Some(kept_nodes.iter().copied().map(|old_node| radical_electrons[old_node]).collect());
+
+        Self::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
             atom_nodes,
             builder.finish(kept_nodes.len()),
             parsed_stereo_neighbors,
+            radical_electrons,
         )
     }
 
@@ -530,6 +546,7 @@ fn maybe_collapse_atom_to_organic_subset<AtomPolicy: crate::smiles::SmilesAtomPo
     smiles: &Smiles<AtomPolicy>,
     node_id: usize,
     atom: Atom,
+    radical_electrons: &[u8],
 ) -> Atom {
     if atom.syntax() != AtomSyntax::Bracket
         || atom.isotope_mass_number().is_some()
@@ -541,6 +558,7 @@ fn maybe_collapse_atom_to_organic_subset<AtomPolicy: crate::smiles::SmilesAtomPo
         || !canonicalization_valid_unbracketed(atom.symbol())
         || implicit_hydrogens_if_written_unbracketed(smiles, node_id, &atom)
             != atom.hydrogen_count()
+        || radical_electrons[node_id] != 0
     {
         return atom;
     }
@@ -571,9 +589,10 @@ fn canonicalization_atom_spelling_normal_form<AtomPolicy: crate::smiles::SmilesA
     smiles: &Smiles<AtomPolicy>,
     node_id: usize,
     atom: Atom,
+    radical_electrons: &[u8],
 ) -> Atom {
     if atom.syntax() == AtomSyntax::Bracket {
-        maybe_collapse_atom_to_organic_subset(smiles, node_id, atom)
+        maybe_collapse_atom_to_organic_subset(smiles, node_id, atom, radical_electrons)
     } else {
         atom
     }

@@ -89,12 +89,16 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             .copied()
             .map(|old_node| self.implicit_hydrogen_cache[old_node])
             .collect();
+        let radical_electrons = self.radical_electron_counts();
+        let radical_electrons =
+            Some(old_nodes.iter().copied().map(|old_node| radical_electrons[old_node]).collect());
 
         Self::from_bond_matrix_parts_with_sidecars(
             atom_nodes,
             builder.finish(old_nodes.len()),
             parsed_stereo_neighbors,
             implicit_hydrogen_cache,
+            radical_electrons,
             None,
         )
     }

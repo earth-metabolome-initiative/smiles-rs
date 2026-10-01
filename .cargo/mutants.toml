@@ -9,3 +9,7 @@ exclude_globs = [
     "src/datasets.rs",
     "src/datasets/**/*.rs",
 ]
+
+# The aromatic-bracket filter in stored_radical_electrons only skips a kekulization that cannot change
+# any count, since every atom the kekulizer can give a double bond already has a nonzero direct count.
+exclude_re = ["replace && with \\|\\| in stored_radical_electrons"]

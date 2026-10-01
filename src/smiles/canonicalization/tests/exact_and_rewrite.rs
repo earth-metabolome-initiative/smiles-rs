@@ -26,6 +26,22 @@ fn exact_canonicalize_converges_identical_disconnected_components() {
 }
 
 #[test]
+#[should_panic(expected = "radical_electrons differs")]
+fn same_canonicalization_state_rejects_graphs_differing_only_in_radicals() {
+    let methyl = Smiles::from_str("[CH3]").unwrap();
+    let without_radical: Smiles = Smiles::from_bond_matrix_parts_with_sidecars(
+        methyl.atom_nodes.clone(),
+        methyl.bond_matrix.clone(),
+        methyl.parsed_stereo_neighbors.clone(),
+        methyl.implicit_hydrogen_cache.clone(),
+        Some(vec![0]),
+        None,
+    );
+
+    same_canonicalization_state(&methyl, &without_radical);
+}
+
+#[test]
 fn canonicalize_converges_permuted_symmetric_cage_graph() {
     let original = Smiles::from_str("C12C3C4C1C5C2C3C45").unwrap();
     let permuted = permute_smiles(&original, &[7, 3, 0, 5, 2, 6, 1, 4]);

@@ -15,7 +15,7 @@ use crate::{
 };
 
 mod rdkit_default;
-pub(crate) use self::rdkit_default::rdkit_smarts_total_valence;
+pub(crate) use self::rdkit_default::{rdkit_smarts_total_valence, stored_radical_electrons};
 
 /// Aromaticity-model interface for [`Smiles`].
 ///
@@ -1108,6 +1108,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             bond_matrix,
             self.parsed_stereo_neighbors.clone(),
             implicit_hydrogen_cache,
+            Some(self.radical_electron_counts().to_vec()),
             kekulization_source,
         ))
     }

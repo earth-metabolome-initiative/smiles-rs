@@ -197,10 +197,11 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         )
         .unwrap_or_else(|_| unreachable!("existing bond matrix entries are already valid"));
 
-        let kekulized = Self::from_bond_matrix_parts_with_parsed_stereo(
+        let kekulized = Self::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
             atom_nodes,
             bond_matrix,
             self.parsed_stereo_neighbors.clone(),
+            Some(self.radical_electron_counts().to_vec()),
         );
         Ok(kekulized)
     }
@@ -347,10 +348,11 @@ fn clear_aromatic_flags<AtomPolicy: SmilesAtomPolicy>(
     )
     .unwrap_or_else(|_| unreachable!("existing bond matrix entries are already valid"));
 
-    Smiles::from_bond_matrix_parts_with_parsed_stereo(
+    Smiles::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
         atom_nodes,
         bond_matrix,
         smiles.parsed_stereo_neighbors.clone(),
+        Some(smiles.radical_electron_counts().to_vec()),
     )
 }
 

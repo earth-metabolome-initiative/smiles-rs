@@ -1,11 +1,11 @@
 //! Standalone fragments carved out of a parent [`Smiles`] graph.
 //!
 //! A [`Fragment`] keeps the parent's atom and bond typing (including aromatic
-//! flags) but recomputes implicit hydrogen counts for the fragment's own
-//! connectivity, so an atom that becomes terminal gains the hydrogens its
-//! reduced valence implies. Atom ids are remapped to a compact local numbering,
-//! with the parent correspondence kept private behind [`Fragment::local_id`]
-//! and [`Fragment::parent_id`].
+//! flags) and the parent's radical electron counts, but recomputes implicit
+//! hydrogen counts for the fragment's own connectivity, so an atom that
+//! becomes terminal gains the hydrogens its reduced valence implies. Atom ids
+//! are remapped to a compact local numbering, with the parent correspondence
+//! kept private behind [`Fragment::local_id`] and [`Fragment::parent_id`].
 
 use alloc::{string::String, vec::Vec};
 
@@ -88,7 +88,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Fragment<AtomPolicy> {
 impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// Builds a fragment from an atom set: every bond among the chosen atoms is
     /// included (an induced subgraph). Implicit hydrogen counts are recomputed
-    /// for the fragment.
+    /// for the fragment, while radical electron counts are kept from the
+    /// parent.
     ///
     /// # Errors
     ///
@@ -126,7 +127,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
 
     /// Builds a fragment from a bond set (RDKit `PathToSubmol`): exactly the
     /// listed bonds are kept and their endpoints become the fragment's atoms.
-    /// Implicit hydrogen counts are recomputed for the fragment.
+    /// Implicit hydrogen counts are recomputed for the fragment, while radical
+    /// electron counts are kept from the parent.
     ///
     /// # Errors
     ///
@@ -173,11 +175,19 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             parent_of_local.iter().map(|&parent| self.atom_nodes[parent]).collect();
         let atom_count = atom_nodes.len();
         let parsed_stereo_neighbors = vec![Vec::new(); atom_count];
-        let smiles = Self::from_bond_matrix_parts_with_parsed_stereo_and_source(
+        let parent_radical_electrons = self.radical_electron_counts();
+        let radical_electrons = Some(
+            parent_of_local
+                .iter()
+                .copied()
+                .map(|parent| parent_radical_electrons[parent])
+                .collect(),
+        );
+        let smiles = Self::from_bond_matrix_parts_with_parsed_stereo_and_radicals(
             atom_nodes,
             builder.finish(atom_count),
             parsed_stereo_neighbors,
-            None,
+            radical_electrons,
         );
         Fragment { smiles, parent_of_local, local_of_parent }
     }

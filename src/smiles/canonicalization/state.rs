@@ -32,6 +32,7 @@ pub(super) struct CanonicalizationStateKey {
     bond_edges: Vec<(usize, usize, CanonicalBondLabel)>,
     parsed_stereo_neighbors: Vec<Vec<CanonicalStereoNeighborKey>>,
     implicit_hydrogen_cache: Vec<u8>,
+    radical_electrons: Vec<u8>,
 }
 
 pub(super) fn canonical_atom_label(atom: Atom) -> CanonicalAtomLabel {
@@ -81,6 +82,7 @@ pub(super) fn canonicalization_state_key<AtomPolicy: SmilesAtomPolicy>(
         bond_edges,
         parsed_stereo_neighbors,
         implicit_hydrogen_cache: smiles.implicit_hydrogen_cache.clone(),
+        radical_electrons: smiles.radical_electron_counts().to_vec(),
     }
 }
 
