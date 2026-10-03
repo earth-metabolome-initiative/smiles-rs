@@ -741,6 +741,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// a double bond, when stereo was not specified, or when the surrounding
     /// environment does not support a semantic alkene-stereo assignment.
     ///
+    /// The label refers to [`Self::double_bond_stereo_atoms`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -762,7 +764,36 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
         node_a: usize,
         node_b: usize,
     ) -> Option<DoubleBondStereoConfig> {
-        self.semantic_double_bond_stereo_config(node_a, node_b)
+        self.double_bond_stereo_record(node_a, node_b)
+            .map(double_bond_stereo::DoubleBondStereoRecord::config)
+    }
+
+    /// Returns ordered reference neighbours for the double-bond stereo label.
+    ///
+    /// The first neighbour belongs to `node_a`, the second to `node_b`.
+    /// Returns `None` when the stereo label is absent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use smiles_rs::{DoubleBondStereoConfig, Smiles};
+    ///
+    /// let smiles: Smiles = "F/C(Cl)=C/Br".parse()?;
+    /// assert_eq!(smiles.double_bond_stereo_atoms(1, 3), Some((2, 4)));
+    /// assert_eq!(smiles.double_bond_stereo_atoms(3, 1), Some((4, 2)));
+    /// assert_eq!(smiles.double_bond_stereo_config(1, 3), Some(DoubleBondStereoConfig::Z));
+    /// # Ok::<(), smiles_rs::SmilesErrorWithSpan>(())
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn double_bond_stereo_atoms(&self, node_a: usize, node_b: usize) -> Option<(usize, usize)> {
+        let record = self.double_bond_stereo_record(node_a, node_b)?;
+        let (side_a, side_b) = (record.side_a(), record.side_b());
+        if side_a.endpoint() == node_a {
+            Some((side_a.reference_atom(), side_b.reference_atom()))
+        } else {
+            Some((side_b.reference_atom(), side_a.reference_atom()))
+        }
     }
 
     /// Returns the atoms and bonds that belong to at least one ring.
@@ -1677,6 +1708,13 @@ impl WildcardSmiles {
         node_b: usize,
     ) -> Option<DoubleBondStereoConfig> {
         self.inner.double_bond_stereo_config(node_a, node_b)
+    }
+
+    /// Returns ordered reference neighbours for the double-bond stereo label.
+    #[inline]
+    #[must_use]
+    pub fn double_bond_stereo_atoms(&self, node_a: usize, node_b: usize) -> Option<(usize, usize)> {
+        self.inner.double_bond_stereo_atoms(node_a, node_b)
     }
 
     /// Returns the atoms and bonds that belong to at least one ring.
