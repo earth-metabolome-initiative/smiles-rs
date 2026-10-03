@@ -1624,7 +1624,7 @@ checksum = "b9be42f50aa861c555654aa3a37f52f4b1074bacf4e48fe0ef7fa584e80f1f0f"
 
 [[package]]
 name = "smiles-rs"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "criterion",
  "csv",
