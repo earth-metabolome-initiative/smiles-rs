@@ -12,4 +12,15 @@ exclude_globs = [
 
 # The aromatic-bracket filter in stored_radical_electrons only skips a kekulization that cannot change
 # any count, since every atom the kekulizer can give a double bond already has a nonzero direct count.
-exclude_re = ["replace && with \\|\\| in stored_radical_electrons"]
+exclude_re = [
+    "replace && with \\|\\| in stored_radical_electrons",
+    # Reference atoms differ from their double-bond endpoint.
+    "replace > with >= in Smiles<AtomPolicy>::projected_directional_bond_overrides_with_classes$",
+    "replace > with >= in Smiles<AtomPolicy>::atom_based_double_bond_normalization$",
+    # Distinct bond endpoints have distinct traversal indices.
+    "replace < with <= in directional_override_rows_from_parity_constraints$",
+    # Bond emission traverses distinct endpoints.
+    "replace > with >= in normalized_bond_for_emit$",
+    # This helper checks invariants in tests and fuzzing.
+    "replace assert_core_rewrite_invariants with \\(\\)$",
+]

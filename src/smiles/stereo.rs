@@ -47,7 +47,7 @@ impl DirectionalBondOverrides {
         let (left, right) = crate::smiles::edge_key(from, to);
         let row = self.rows.get(left)?;
         let index = row.binary_search_by_key(&right, |&(neighbor, _)| neighbor).ok()?;
-        Some(row[index].1)
+        Some(normalized_bond_for_emit(row[index].1, from, to))
     }
 
     #[inline]
@@ -112,8 +112,10 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                     ),
                     same_parity: matches!(
                         record.config(),
-                        crate::smiles::double_bond_stereo::DoubleBondStereoConfig::E
-                    ),
+                        crate::smiles::double_bond_stereo::DoubleBondStereoConfig::Z
+                    ) ^ (record.side_a().endpoint()
+                        > record.side_a().reference_atom())
+                        ^ (record.side_b().endpoint() > record.side_b().reference_atom()),
                 }
             })
             .collect::<Vec<_>>();
@@ -189,7 +191,8 @@ pub(super) fn directional_override_rows_from_parity_constraints(
             })
             .unwrap_or_else(|| unreachable!());
 
-        bond_is_up[seed] = Some(true);
+        let (from, to) = edge_keys[seed];
+        bond_is_up[seed] = Some(preorder_indices[from] < preorder_indices[to]);
         stack.push(seed);
 
         while let Some(current) = stack.pop() {
@@ -226,8 +229,11 @@ fn canonical_directional_edge_key(
 }
 
 pub(crate) fn normalized_bond_for_emit(bond: Bond, from: usize, to: usize) -> Bond {
-    let _ = (from, to);
-    bond
+    match (bond, from > to) {
+        (Bond::Up, true) => Bond::Down,
+        (Bond::Down, true) => Bond::Up,
+        _ => bond,
+    }
 }
 
 #[must_use]
@@ -316,27 +322,12 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::{
-        Smiles, StereoNeighbor, invert_tetrahedral_chirality, normalized_bond_for_emit,
-        normalized_tetrahedral_chirality,
+        Smiles, StereoNeighbor, invert_tetrahedral_chirality, normalized_tetrahedral_chirality,
     };
     use crate::{atom::bracketed::chirality::Chirality, bond::Bond};
 
     fn identity_preorder(smiles: &Smiles) -> Vec<usize> {
         (0..smiles.nodes().len()).collect()
-    }
-
-    #[test]
-    fn normalized_bond_for_emit_preserves_forward_direction() {
-        assert_eq!(normalized_bond_for_emit(Bond::Up, 0, 1), Bond::Up);
-        assert_eq!(normalized_bond_for_emit(Bond::Down, 0, 1), Bond::Down);
-        assert_eq!(normalized_bond_for_emit(Bond::Double, 0, 1), Bond::Double);
-    }
-
-    #[test]
-    fn normalized_bond_for_emit_preserves_stored_direction_for_reverse_traversal() {
-        assert_eq!(normalized_bond_for_emit(Bond::Up, 1, 0), Bond::Up);
-        assert_eq!(normalized_bond_for_emit(Bond::Down, 1, 0), Bond::Down);
-        assert_eq!(normalized_bond_for_emit(Bond::Single, 1, 0), Bond::Single);
     }
 
     #[test]

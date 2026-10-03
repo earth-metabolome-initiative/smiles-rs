@@ -748,8 +748,10 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     ///
     /// let trans: Smiles = "F/C=C/F".parse()?;
     /// let plain: Smiles = "CC=CC".parse()?;
+    /// let branched: Smiles = "C(\\F)=C/F".parse()?;
     ///
     /// assert_eq!(trans.double_bond_stereo_config(1, 2), Some(DoubleBondStereoConfig::E));
+    /// assert_eq!(branched.double_bond_stereo_config(0, 2), Some(DoubleBondStereoConfig::E));
     /// assert_eq!(plain.double_bond_stereo_config(1, 2), None);
     /// # Ok::<(), smiles_rs::SmilesErrorWithSpan>(())
     /// ```

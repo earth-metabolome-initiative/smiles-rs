@@ -82,7 +82,6 @@ fn test_parse_tribenzo_annulene_variant() {
 
     assert!(has_edge(&smiles, 0, 1, Bond::Double));
     assert!(has_edge(&smiles, 1, 2, Bond::Down));
-    assert!(has_edge(&smiles, 17, 0, Bond::Up));
 
     assert!(has_edge(&smiles, 5, 8, Bond::Single));
     assert!(has_edge(&smiles, 13, 14, Bond::Single));

@@ -27,6 +27,7 @@ pub type BondMatrix = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, BondEntry>
 #[derive(Clone, Copy, Debug)]
 /// Value stored for each bond in the symmetric adjacency matrix.
 pub struct BondEntry {
+    // Directional bonds are stored from the lower atom index to the higher one.
     bond: Bond,
     ring_num: Option<RingNum>,
     aromatic: bool,
@@ -65,7 +66,8 @@ impl BondEntry {
         Self { bond: descriptor.bond(), ring_num, aromatic: descriptor.is_aromatic(), order }
     }
 
-    /// Returns the bond type stored for this adjacency entry.
+    /// Returns the stored bond type, with directional bonds oriented from the
+    /// lower atom index to the higher one.
     ///
     /// # Examples
     ///
@@ -223,6 +225,11 @@ impl BondMatrixBuilder {
             return Err(SmilesError::DuplicateEdge(row, column));
         }
 
+        let descriptor = descriptor.with_bond(super::stereo::normalized_bond_for_emit(
+            descriptor.bond(),
+            node_a,
+            node_b,
+        ));
         let order = self.entries.len();
         self.entries.push(PendingBond::new(
             row,

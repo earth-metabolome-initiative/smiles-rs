@@ -27,8 +27,22 @@ fn canonicalize_converges_alkene_stereo_equivalence_groups() {
 #[test]
 fn canonicalize_converges_atom_based_alkene_stereo_equivalence_groups() {
     let groups = [
-        &["F[C@@H]=[C@H]F", "F[C@H]=[C@@H]F", "F/C=C/F", "[C@H](F)=[C@H]F"][..],
-        &["F[C@H]=[C@H]F", "F[C@@H]=[C@@H]F", "F/C=C\\F", "[C@@H](F)=[C@H]F"][..],
+        &[
+            "F[C@@H]=[C@H]F",
+            "F[C@H]=[C@@H]F",
+            "F/C=C/F",
+            "[C@H](F)=[C@H]F",
+            "F1.F[C@@H]=[C@H]1",
+            "F1.[C@H](F)=[C@H]1",
+        ][..],
+        &[
+            "F[C@H]=[C@H]F",
+            "F[C@@H]=[C@@H]F",
+            "F/C=C\\F",
+            "[C@@H](F)=[C@H]F",
+            "F1.F[C@H]=[C@H]1",
+            "F1.[C@@H](F)=[C@H]1",
+        ][..],
     ];
 
     for group in groups {

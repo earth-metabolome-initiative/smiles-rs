@@ -387,7 +387,9 @@ impl<AtomPolicy: SmilesAtomPolicy> ParserState<AtomPolicy> {
                 .or(stored_bond)
                 .unwrap_or_else(|| default_bond(self.nodes(), current, other));
 
-            self.push_edge_verified(current, other, bond, Some(ring_num))
+            let (source, target) =
+                if self.pending_bond().is_some() { (current, other) } else { (other, current) };
+            self.push_edge_verified(source, target, bond, Some(ring_num))
                 .map_err(|e| SmilesErrorWithSpan::new(e, start, end))?;
             self.append_stereo_neighbor(current, PendingStereoNeighbor::Atom(other));
             self.resolve_ring_label_neighbor(other, ring_num, current);

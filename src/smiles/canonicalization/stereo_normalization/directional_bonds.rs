@@ -103,7 +103,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                         record.3.endpoint,
                         record.3.reference_atom,
                     ),
-                    same_parity: matches!(record.4, DoubleBondStereoConfig::E),
+                    same_parity: matches!(record.4, DoubleBondStereoConfig::Z)
+                        ^ (record.2.endpoint > record.2.reference_atom)
+                        ^ (record.3.endpoint > record.3.reference_atom),
                 }
             })
             .collect::<Vec<_>>();

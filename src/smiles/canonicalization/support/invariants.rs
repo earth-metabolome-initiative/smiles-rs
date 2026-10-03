@@ -21,7 +21,7 @@ use crate::{
             },
         },
         double_bond_stereo::DoubleBondStereoConfig,
-        stereo::normalized_tetrahedral_chirality,
+        stereo::{normalized_bond_for_emit, normalized_tetrahedral_chirality},
     },
 };
 
@@ -372,9 +372,10 @@ fn assert_core_rewrite_invariants(
             canonicalized.edge_for_node_pair((new_row, new_column)).unwrap_or_else(|| {
                 panic!("missing edge after canonicalization: {new_row}-{new_column}")
             });
+        let expected_bond = normalized_bond_for_emit(entry.bond(), new_row, new_column);
         assert_eq!(
             rewritten.bond(),
-            entry.bond(),
+            expected_bond,
             "bond kind changed during canonicalization for edge {row}-{column}",
         );
         assert_eq!(

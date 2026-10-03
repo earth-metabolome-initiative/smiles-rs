@@ -138,8 +138,11 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             }
             let new_row = new_index_of_old_node[row];
             let new_column = new_index_of_old_node[column];
-            let (new_row, new_column) = crate::smiles::edge_key(new_row, new_column);
-            canonical_edges.push((new_row, new_column, entry.descriptor()));
+            let (canonical_row, canonical_column) = crate::smiles::edge_key(new_row, new_column);
+            let descriptor = entry.descriptor();
+            let bond =
+                super::stereo::normalized_bond_for_emit(descriptor.bond(), new_row, new_column);
+            canonical_edges.push((canonical_row, canonical_column, descriptor.with_bond(bond)));
         }
         canonical_edges.sort_unstable_by_key(|(row, column, _descriptor)| (*row, *column));
         let bond_matrix = BondMatrix::from_sorted_upper_triangular_entries(
