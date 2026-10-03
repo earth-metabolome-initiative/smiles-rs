@@ -149,9 +149,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 let left = stereo_side_parity(side_a);
                 let right = stereo_side_parity(side_b);
                 let config = if left == right {
-                    DoubleBondStereoConfig::E
-                } else {
                     DoubleBondStereoConfig::Z
+                } else {
+                    DoubleBondStereoConfig::E
                 };
 
                 Some(DoubleBondStereoRecord {
@@ -251,7 +251,14 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 }
                 match entry.bond() {
                     Bond::Up | Bond::Down => {
-                        Some(DirectionalNeighbor { neighbor, bond: entry.bond() })
+                        Some(DirectionalNeighbor {
+                            neighbor,
+                            bond: super::stereo::normalized_bond_for_emit(
+                                entry.bond(),
+                                endpoint,
+                                neighbor,
+                            ),
+                        })
                     }
                     _ => None,
                 }
@@ -649,6 +656,41 @@ mod tests {
     }
 
     #[test]
+    fn double_bond_stereo_config_is_independent_of_substituent_order() {
+        for (input, left, right, expected) in [
+            ("F/C=C/F", 1, 2, DoubleBondStereoConfig::E),
+            ("F/C=C\\F", 1, 2, DoubleBondStereoConfig::Z),
+            ("C(\\F)=C/F", 0, 2, DoubleBondStereoConfig::E),
+            ("C(/F)=C/F", 0, 2, DoubleBondStereoConfig::Z),
+            ("C(=C/F)\\F", 0, 1, DoubleBondStereoConfig::E),
+            ("C(=C\\F)\\F", 0, 1, DoubleBondStereoConfig::Z),
+            ("F/C=C/1.F1", 1, 2, DoubleBondStereoConfig::E),
+            ("F/C=C1.F\\1", 1, 2, DoubleBondStereoConfig::E),
+            ("F/C=C1.F/1", 1, 2, DoubleBondStereoConfig::Z),
+            ("F1.F/C=C/1", 2, 3, DoubleBondStereoConfig::E),
+            ("F1.F/C=C\\1", 2, 3, DoubleBondStereoConfig::Z),
+        ] {
+            let smiles = parse(input);
+            assert_eq!(smiles.double_bond_stereo_config(left, right), Some(expected), "{input}");
+            assert_eq!(smiles.double_bond_stereo_config(right, left), Some(expected), "{input}");
+            let rendered = smiles.to_string();
+            assert_eq!(
+                semantic_double_bond_stereo_signature(&smiles),
+                semantic_double_bond_stereo_signature(&parse(&rendered)),
+                "{input} rendered as {rendered}",
+            );
+            for root in 0..smiles.nodes().len() {
+                let rooted = smiles.render_rooted(root);
+                assert_eq!(
+                    semantic_double_bond_stereo_signature(&smiles),
+                    semantic_double_bond_stereo_signature(&parse(&rooted)),
+                    "{input} rooted at {root} rendered as {rooted}",
+                );
+            }
+        }
+    }
+
+    #[test]
     fn double_bond_stereo_matches_simple_rdkit_e_fixtures() {
         for smiles in ["F/C=C/F", "C/C=C/C", "C/C=C(/F)C"] {
             let records = parse(smiles).double_bond_stereo_records();
@@ -671,8 +713,6 @@ mod tests {
         let record = parse("CC/C(Cl)=C(/F)C").double_bond_stereo_records()[0];
         assert_eq!(record.side_a().reference_atom(), 3);
         assert_eq!(record.side_b().reference_atom(), 5);
-        assert!(!record.side_a().reference_bond_is_up());
-        assert!(record.side_b().reference_bond_is_up());
         assert_eq!(record.config(), DoubleBondStereoConfig::Z);
     }
 

@@ -1,8 +1,10 @@
+use alloc::vec::Vec;
+
 use geometric_traits::traits::SparseValuedMatrixRef;
 
 use super::super::{
     Smiles, canonicalization_state_key,
-    support::{assert_canonicalization_invariants, same_canonicalization_state},
+    support::{assert_canonicalization_invariants, permute_smiles, same_canonicalization_state},
 };
 use crate::{bond::Bond, parser::smiles_parser::parse_wildcard_smiles, smiles::WildcardAtoms};
 
@@ -133,6 +135,25 @@ fn canonicalize_handles_fuzz_crash_db6568a7_regression() {
     );
 
     assert_canonicalization_invariants(&smiles);
+}
+
+#[test]
+fn canonical_convergence_for_reversed_orphan_directional_fragment() {
+    let smiles = wildcard_smiles("C/F\\Cl");
+
+    assert_canonicalization_invariants(&smiles);
+
+    let canonicalized = smiles.canonicalize();
+    assert_eq!(
+        bond_count(&canonicalized, Bond::Up) + bond_count(&canonicalized, Bond::Down),
+        2,
+        "orphan directional bonds must survive canonicalization"
+    );
+
+    let node_count = smiles.nodes().len();
+    let reversed: Vec<usize> = (0..node_count).rev().collect();
+    let permuted = permute_smiles(&smiles, &reversed);
+    same_canonicalization_state(&canonicalized, &permuted.canonicalize());
 }
 
 #[test]
