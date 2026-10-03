@@ -296,9 +296,9 @@ mod tests {
     #[test]
     fn branch_plan_of_empty_graph_is_empty() {
         let plan = Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().branch_plan();
-        assert!(plan.ordered_children(0).is_empty());
+        assert_eq!(plan.ordered_children(0), [] as [usize; 0]);
         assert_eq!(plan.continuation_child(0), None);
-        assert!(plan.branch_children(0).is_empty());
+        assert_eq!(plan.branch_children(0), [] as [usize; 0]);
         assert_eq!(plan.subtree_signature(0), None);
     }
 
@@ -307,7 +307,7 @@ mod tests {
         let plan = plan("CCCO");
         assert_eq!(plan.ordered_children(0), &[1]);
         assert_eq!(plan.continuation_child(0), Some(1));
-        assert!(plan.branch_children(0).is_empty());
+        assert_eq!(plan.branch_children(0), [] as [usize; 0]);
     }
 
     #[test]

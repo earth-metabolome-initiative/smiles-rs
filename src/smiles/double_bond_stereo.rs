@@ -605,7 +605,7 @@ where
 mod tests {
     use alloc::{string::ToString, vec::Vec};
 
-    use super::{DoubleBondStereoConfig, Smiles};
+    use super::{DoubleBondStereoConfig, DoubleBondStereoRecord, Smiles};
 
     type SemanticDoubleBondStereoSignature =
         ([usize; 2], [(usize, usize); 2], DoubleBondStereoConfig);
@@ -642,10 +642,9 @@ mod tests {
 
     #[test]
     fn double_bond_stereo_of_empty_graph_is_empty() {
-        assert!(
-            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy()
-                .double_bond_stereo_records()
-                .is_empty()
+        assert_eq!(
+            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().double_bond_stereo_records(),
+            [] as [DoubleBondStereoRecord; 0]
         );
     }
 
@@ -679,12 +678,18 @@ mod tests {
 
     #[test]
     fn double_bond_stereo_omits_non_stereogenic_ring_alkene() {
-        assert!(parse("C1CC/C=C/CC1").double_bond_stereo_records().is_empty());
+        assert_eq!(
+            parse("C1CC/C=C/CC1").double_bond_stereo_records(),
+            [] as [DoubleBondStereoRecord; 0]
+        );
     }
 
     #[test]
     fn double_bond_stereo_omits_cumulene_like_directional_case() {
-        assert!(parse("C=C(=C/CO)/C#N").double_bond_stereo_records().is_empty());
+        assert_eq!(
+            parse("C=C(=C/CO)/C#N").double_bond_stereo_records(),
+            [] as [DoubleBondStereoRecord; 0]
+        );
     }
 
     #[test]

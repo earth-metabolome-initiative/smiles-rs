@@ -245,10 +245,9 @@ mod tests {
 
     #[test]
     fn rooted_symmetry_classes_of_empty_graph_are_empty() {
-        assert!(
-            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy()
-                .rooted_symmetry_classes()
-                .is_empty()
+        assert_eq!(
+            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().rooted_symmetry_classes(),
+            [] as [usize; 0]
         );
     }
 

@@ -250,15 +250,15 @@ fn edge_descriptor(edge: BondEdge) -> BondDescriptor {
 #[cfg(test)]
 mod tests {
     use super::Smiles;
-    use crate::bond::Bond;
+    use crate::bond::{Bond, bond_edge::BondEdge};
 
     #[test]
     fn spanning_forest_of_empty_graph_is_empty() {
         let forest = Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().spanning_forest();
-        assert!(forest.roots().is_empty());
-        assert!(forest.closure_edges().is_empty());
+        assert_eq!(forest.roots(), [] as [usize; 0]);
+        assert_eq!(forest.closure_edges(), [] as [BondEdge; 0]);
         assert_eq!(forest.parent_of(0), None);
-        assert!(forest.children_of(0).is_empty());
+        assert_eq!(forest.children_of(0), [] as [usize; 0]);
     }
 
     #[test]
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(forest.children_of(0), &[1]);
         assert_eq!(forest.children_of(1), &[2]);
         assert_eq!(forest.children_of(2), &[3]);
-        assert!(forest.closure_edges().is_empty());
+        assert_eq!(forest.closure_edges(), [] as [BondEdge; 0]);
     }
 
     #[test]

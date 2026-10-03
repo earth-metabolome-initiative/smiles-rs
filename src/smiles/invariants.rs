@@ -183,8 +183,9 @@ mod tests {
 
     #[test]
     fn atom_invariants_of_empty_graph_are_empty() {
-        assert!(
-            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().atom_invariants().is_empty()
+        assert_eq!(
+            Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().atom_invariants(),
+            [] as [AtomInvariant; 0]
         );
     }
 

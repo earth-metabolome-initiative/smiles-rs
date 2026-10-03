@@ -583,10 +583,10 @@ mod tests {
         assert_eq!(state.last_span, (0, 0));
         assert_eq!(state.last_atom(), None);
         assert_eq!(state.pending_bond(), None);
-        assert!(state.branch_stack.is_empty());
+        assert_eq!(state.branch_stack, [] as [usize; 0]);
         assert!(state.stack_empty());
         assert!(state.ring_open_empty());
-        assert!(state.nodes().is_empty());
+        assert_eq!(state.nodes(), [] as [Atom; 0]);
         let smiles = state.into_smiles();
         assert_eq!(smiles.number_of_bonds(), 0);
     }
@@ -619,7 +619,7 @@ mod tests {
         let mut state = ParserState::new(0);
 
         assert!(state.stack_empty());
-        assert!(state.branch_stack.is_empty());
+        assert_eq!(state.branch_stack, [] as [usize; 0]);
 
         state.push_stack(1);
         state.push_stack(3);

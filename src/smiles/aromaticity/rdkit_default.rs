@@ -2535,8 +2535,8 @@ mod tests {
         let assignment = smiles.aromaticity_assignment();
 
         assert_eq!(assignment.status(), super::AromaticityStatus::Partial);
-        assert!(!assignment.atom_ids().is_empty());
-        assert!(!assignment.bond_edges().is_empty());
+        assert_ne!(assignment.atom_ids(), [] as [usize; 0]);
+        assert_ne!(assignment.bond_edges(), [] as [[usize; 2]; 0]);
     }
 
     #[test]

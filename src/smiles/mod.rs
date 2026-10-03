@@ -2591,8 +2591,8 @@ mod tests {
         let assignment = smiles.aromaticity_assignment_for(AromaticityPolicy::RdkitMdl);
 
         assert_eq!(assignment.status(), AromaticityStatus::Complete);
-        assert!(assignment.atom_ids().is_empty());
-        assert!(assignment.bond_edges().is_empty());
+        assert_eq!(assignment.atom_ids(), [] as [usize; 0]);
+        assert_eq!(assignment.bond_edges(), [] as [[usize; 2]; 0]);
     }
 
     #[test]
@@ -2894,7 +2894,7 @@ mod tests {
         let perception = smiles.perceive_aromaticity_with(&PartialModel).unwrap();
 
         assert_eq!(perception.status(), AromaticityStatus::Partial);
-        assert!(perception.diagnostics().is_empty());
+        assert_eq!(perception.diagnostics(), [] as [AromaticityDiagnostic; 0]);
         assert_eq!(perception.assignment().atom_ids(), &[0, 1]);
         assert_eq!(perception.assignment().bond_edges(), &[[0, 1]]);
         assert!(perception.aromaticized().nodes().iter().all(Atom::aromatic));
@@ -2907,7 +2907,7 @@ mod tests {
         let perception = smiles.perceive_aromaticity_for(AromaticityPolicy::RdkitDefault).unwrap();
 
         assert_eq!(perception.status(), AromaticityStatus::Complete);
-        assert!(perception.diagnostics().is_empty());
+        assert_eq!(perception.diagnostics(), [] as [AromaticityDiagnostic; 0]);
         assert_eq!(perception.assignment().atom_ids(), &[0, 1, 2, 3, 4, 5]);
 
         let assignment = perception.into_assignment();
@@ -3013,15 +3013,15 @@ mod tests {
         let hetero_radical_assignment =
             hetero_radical.aromaticity_assignment_for(AromaticityPolicy::RdkitDefault);
         assert_eq!(hetero_radical_assignment.status(), AromaticityStatus::Complete);
-        assert!(hetero_radical_assignment.atom_ids().is_empty());
-        assert!(hetero_radical_assignment.bond_edges().is_empty());
+        assert_eq!(hetero_radical_assignment.atom_ids(), [] as [usize; 0]);
+        assert_eq!(hetero_radical_assignment.bond_edges(), [] as [[usize; 2]; 0]);
 
         let charged_carbon_radical: Smiles = "C1=CC=CC=C[C+]1".parse().unwrap();
         let charged_carbon_radical_assignment =
             charged_carbon_radical.aromaticity_assignment_for(AromaticityPolicy::RdkitDefault);
         assert_eq!(charged_carbon_radical_assignment.status(), AromaticityStatus::Complete);
-        assert!(charged_carbon_radical_assignment.atom_ids().is_empty());
-        assert!(charged_carbon_radical_assignment.bond_edges().is_empty());
+        assert_eq!(charged_carbon_radical_assignment.atom_ids(), [] as [usize; 0]);
+        assert_eq!(charged_carbon_radical_assignment.bond_edges(), [] as [[usize; 2]; 0]);
 
         let neutral_carbon_radical: Smiles = "C1=[C]NC=C1".parse().unwrap();
         let perception = neutral_carbon_radical
@@ -3214,8 +3214,8 @@ mod tests {
         let assignment = smiles.aromaticity_assignment();
 
         assert_eq!(assignment.status(), AromaticityStatus::Complete);
-        assert!(assignment.atom_ids().is_empty());
-        assert!(assignment.bond_edges().is_empty());
+        assert_eq!(assignment.atom_ids(), [] as [usize; 0]);
+        assert_eq!(assignment.bond_edges(), [] as [[usize; 2]; 0]);
     }
 
     #[test]
@@ -3224,8 +3224,8 @@ mod tests {
         let assignment = smiles.aromaticity_assignment();
 
         assert_eq!(assignment.status(), AromaticityStatus::Complete);
-        assert!(assignment.atom_ids().is_empty());
-        assert!(assignment.bond_edges().is_empty());
+        assert_eq!(assignment.atom_ids(), [] as [usize; 0]);
+        assert_eq!(assignment.bond_edges(), [] as [[usize; 2]; 0]);
     }
 
     #[test]

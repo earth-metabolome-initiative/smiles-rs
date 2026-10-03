@@ -1580,7 +1580,7 @@ mod tests {
             post_bridge_ring_count_for_fragment(&smiles, &fragment);
 
         assert!(first_bridge.is_none());
-        assert!(bridge_edges.is_empty());
+        assert_eq!(bridge_edges, [] as [[usize; 2]; 0]);
         assert!(
             ring_count < expected_rings,
             "exact-stage search unexpectedly reached the cyclomatic target before fallback"
