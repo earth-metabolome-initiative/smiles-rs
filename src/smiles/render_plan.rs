@@ -805,7 +805,9 @@ fn rendered_bond_text_len<AtomPolicy: SmilesAtomPolicy>(
 mod tests {
     use alloc::vec::Vec;
 
-    use super::{RenderPlan, Smiles, StereoNeighbor};
+    use super::{
+        ChildRenderPlan, ClosureRenderPlan, ComponentRenderPlan, RenderPlan, Smiles, StereoNeighbor,
+    };
     use crate::atom::bracketed::chirality::Chirality;
 
     fn plan(smiles: &str) -> RenderPlan {
@@ -815,7 +817,7 @@ mod tests {
     #[test]
     fn render_plan_of_empty_graph_is_empty() {
         let plan = Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy().render_plan();
-        assert!(plan.components().is_empty());
+        assert_eq!(plan.components(), [] as [ComponentRenderPlan; 0]);
         assert_eq!(plan.node(0), None);
     }
 
@@ -829,15 +831,15 @@ mod tests {
         let node_0 = plan.node(0).unwrap();
         assert_eq!(node_0.parent(), None);
         assert_eq!(node_0.continuation_child().map(|child| child.child()), Some(1));
-        assert!(node_0.branch_children().is_empty());
-        assert!(node_0.closures().is_empty());
+        assert_eq!(node_0.branch_children(), [] as [ChildRenderPlan; 0]);
+        assert_eq!(node_0.closures(), [] as [ClosureRenderPlan; 0]);
         assert_eq!(node_0.ordered_children()[0].child(), 1);
 
         let node_2 = plan.node(2).unwrap();
         assert_eq!(node_2.parent(), Some(1));
         assert_eq!(node_2.parent_bond(), Some(crate::bond::Bond::Single.into()));
         assert_eq!(node_2.continuation_child().map(|child| child.child()), Some(3));
-        assert!(node_2.branch_children().is_empty());
+        assert_eq!(node_2.branch_children(), [] as [ChildRenderPlan; 0]);
         assert_eq!(
             node_2.emitted_stereo_neighbors(),
             &[StereoNeighbor::Atom(1), StereoNeighbor::Atom(3)]

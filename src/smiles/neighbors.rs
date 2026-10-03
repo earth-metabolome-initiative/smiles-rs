@@ -197,8 +197,8 @@ mod tests {
     #[test]
     fn ordered_neighbors_of_empty_or_missing_node_are_empty() {
         let smiles = Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy();
-        assert!(smiles.ordered_neighbor_edges(0).is_empty());
-        assert!(smiles.ordered_neighbor_ids(0).is_empty());
+        assert_eq!(smiles.ordered_neighbor_edges(0), [] as [BondEdge; 0]);
+        assert_eq!(smiles.ordered_neighbor_ids(0), [] as [usize; 0]);
     }
 
     #[test]

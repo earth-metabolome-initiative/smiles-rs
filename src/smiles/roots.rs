@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn component_roots_of_empty_graph_are_empty() {
         let smiles = Smiles::<crate::smiles::ConcreteAtoms>::new_for_policy();
-        assert!(smiles.component_roots().is_empty());
+        assert_eq!(smiles.component_roots(), [] as [usize; 0]);
         assert_eq!(smiles.root_of_component(0), None);
     }
 
