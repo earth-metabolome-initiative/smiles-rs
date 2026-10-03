@@ -1,6 +1,6 @@
 //! Reference atoms for interpreting double-bond geometry.
 
-use smiles_rs::{DoubleBondStereoConfig, Smiles};
+use smiles_rs::{DoubleBondStereoConfig, Smiles, WildcardSmiles};
 
 #[test]
 fn chosen_substituent_geometry_is_independent_of_reference_priority() {
@@ -57,5 +57,18 @@ fn reference_atoms_follow_ring_closure_bond_direction() {
             Some(DoubleBondStereoConfig::E),
             "{input}"
         );
+    }
+}
+
+#[test]
+fn wildcard_substituent_geometry_distinguishes_isomers() {
+    for (input, expected_cis) in [(r"*/C(Cl)=C/Br", false), (r"*/C(Cl)=C\Br", true)] {
+        let smiles: WildcardSmiles = input.parse().expect("valid wildcard SMILES");
+        for (a, b, x, y) in [(1, 3, 0, 4), (3, 1, 4, 0)] {
+            let (left, right) = smiles.double_bond_stereo_atoms(a, b).expect("reference atoms");
+            let config = smiles.double_bond_stereo_config(a, b).expect("assigned stereo");
+            let cis = (config == DoubleBondStereoConfig::Z) ^ (x != left) ^ (y != right);
+            assert_eq!(cis, expected_cis, "{input}");
+        }
     }
 }
