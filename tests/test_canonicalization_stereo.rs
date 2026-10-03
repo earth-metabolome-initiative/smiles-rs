@@ -25,6 +25,60 @@ fn canonicalize_converges_alkene_stereo_equivalence_groups() {
 }
 
 #[test]
+fn canonicalize_converges_ring_alkene_stereo_equivalence_groups() {
+    let trans = ["C1CCCCC/C=C/1", r"C\1CCCCC/C=C1", "C1=C/CCCCCC/1", r"C1CCCCC\C=C\1"];
+    let cis =
+        [r"C1CCCCC/C=C\1", r"C/1CCCCC/C=C1", r"C1=C\CCCCCC/1", r"C1CCCCC\C=C/1", "C/1=C/CCCCCC1"];
+    assert_same_canonical_group(&trans);
+    assert_same_canonical_group(&cis);
+    assert_ne!(canonical_string(trans[0]), canonical_string(cis[0]));
+    assert_ne!(canonical_string(trans[0]), canonical_string("C1CCCCCC=C1"));
+    assert_same_canonical_group(&[
+        "C1CCC2CCCC/C=C/C2C1",
+        r"C1CCC2CCCC\C=C\C2C1",
+        "C1=C/C2CCCCC2CCCC/1",
+    ]);
+}
+
+#[test]
+fn canonicalize_converges_macrocyclic_natural_product_spellings() {
+    let caryophyllene = [
+        r"C/C/1=C\CCC(=C)[C@H]2CC([C@@H]2CC1)(C)C",
+        r"[C@@H]12C(=C)CC/C=C(\C)CC[C@H]1C(C)(C2)C",
+        r"C=C1CC/C=C(/CC[C@@H]2[C@@H]1CC2(C)C)C",
+        r"C1(/C)CC[C@@H]2[C@@H](C(=C)CC\C=1)CC2(C)C",
+    ];
+    assert_same_canonical_group(&caryophyllene);
+    assert_ne!(
+        canonical_string(caryophyllene[0]),
+        canonical_string(r"C/C/1=C/CCC(=C)[C@H]2CC([C@@H]2CC1)(C)C"),
+    );
+    assert_same_canonical_group(&[
+        r"C/C/1=C\CC(/C=C/C/C(=C/CC1)/C)(C)C",
+        r"CC1(C)C/C=C(\C)/CC/C=C(\C)/C/C=C/1",
+    ]);
+    assert_same_canonical_group(&[r"C1/C=C/CC/C=C\CC/C=C/C1", r"C1C/C=C/CC/C=C/CC/C=C\1"]);
+}
+
+#[test]
+fn canonicalize_reads_no_alkene_stereo_from_atom_marks_on_cumulated_double_bonds() {
+    for input in [r"F[C@@H]=[C@](F)=O", r"F[C@H]=[C@](F)=O", r"O=[C@](F)=[C@@H]F"] {
+        let canonical = canonical_string(input);
+        assert!(!canonical.contains(['/', '\\']), "{input} canonicalized to {canonical}");
+    }
+}
+
+#[test]
+fn canonicalize_keeps_cumulene_stereo_next_to_non_stereogenic_alkene() {
+    for (trans, cis) in [
+        (r"F/C=C=C=C/C(C)=C(C)C", r"F/C=C=C=C\C(C)=C(C)C"),
+        (r"F/C=C=C=C/C=C(C)C", r"F/C=C=C=C\C=C(C)C"),
+    ] {
+        assert_ne!(canonical_string(trans), canonical_string(cis), "{trans} and {cis}");
+    }
+}
+
+#[test]
 fn canonicalize_converges_atom_based_alkene_stereo_equivalence_groups() {
     let groups = [
         &[
@@ -43,6 +97,8 @@ fn canonicalize_converges_atom_based_alkene_stereo_equivalence_groups() {
             "F1.F[C@H]=[C@H]1",
             "F1.[C@@H](F)=[C@H]1",
         ][..],
+        &["C1CCCCC[C@@H]=[C@H]1", "C1CCCCC[C@H]=[C@@H]1", "C1CCCCC/C=C/1"][..],
+        &["C1CCCCC[C@H]=[C@H]1", "C1CCCCC[C@@H]=[C@@H]1", r"C1CCCCC/C=C\1"][..],
     ];
 
     for group in groups {

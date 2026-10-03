@@ -6,8 +6,9 @@ use geometric_traits::traits::{
 };
 
 use super::{
-    Smiles,
+    RingMembership, Smiles, SmilesAtomPolicy,
     invariants::{AtomInvariant, bond_entry_code},
+    rdkit_symm_sssr,
 };
 use crate::bond::{Bond, bond_edge::BondEdge};
 
@@ -82,7 +83,50 @@ struct DoubleBondStereoCandidate {
     double_bond: BondEdge,
 }
 
-impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
+/// Atom count of the smallest ring whose double bonds can carry `E`/`Z`, as
+/// in `RDKit`, which treats smaller ring alkenes as necessarily cis.
+const MIN_STEREO_RING_SIZE: usize = 8;
+
+/// Finds double bonds whose smallest symmetrized-SSSR ring has fewer than
+/// [`MIN_STEREO_RING_SIZE`] atoms, computing the rings on first need.
+pub(super) struct SmallRingBonds<'a, AtomPolicy: SmilesAtomPolicy> {
+    smiles: &'a Smiles<AtomPolicy>,
+    ring_membership: Option<RingMembership>,
+    cycles: Option<Vec<Vec<usize>>>,
+}
+
+impl<'a, AtomPolicy: SmilesAtomPolicy> SmallRingBonds<'a, AtomPolicy> {
+    pub(super) fn new(smiles: &'a Smiles<AtomPolicy>) -> Self {
+        Self { smiles, ring_membership: None, cycles: None }
+    }
+
+    pub(super) fn contains(&mut self, node_a: usize, node_b: usize) -> bool {
+        let smiles = self.smiles;
+        let ring_membership = self.ring_membership.get_or_insert_with(|| smiles.ring_membership());
+        if !ring_membership.contains_edge(node_a, node_b) {
+            return false;
+        }
+        self.cycles
+            .get_or_insert_with(|| {
+                rdkit_symm_sssr::symmetrize_sssr_with_ring_membership(smiles, ring_membership)
+                    .cycles
+            })
+            .iter()
+            .filter(|cycle| cycle_contains_edge(cycle, node_a, node_b))
+            .map(Vec::len)
+            .min()
+            .is_some_and(|size| size < MIN_STEREO_RING_SIZE)
+    }
+}
+
+fn cycle_contains_edge(cycle: &[usize], node_a: usize, node_b: usize) -> bool {
+    cycle
+        .iter()
+        .zip(cycle.iter().cycle().skip(1))
+        .any(|(&x, &y)| (x, y) == (node_a, node_b) || (x, y) == (node_b, node_a))
+}
+
+impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     #[must_use]
     pub(super) fn double_bond_stereo_records(&self) -> Vec<DoubleBondStereoRecord> {
         let candidates = self.double_bond_stereo_candidates();
@@ -167,9 +211,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         if !self.has_directional_single_bonds() || !self.has_double_bonds() {
             return Vec::new();
         }
-        // Ring membership is cheaper and clearer than rerunning a bespoke
-        // reachability search per double bond candidate.
-        let ring_membership = self.ring_membership();
+        let mut small_ring_bonds = SmallRingBonds::new(self);
 
         self.bond_matrix()
             .sparse_entries()
@@ -186,7 +228,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 }
                 self.has_directional_neighbor(a, b)?;
                 self.has_directional_neighbor(b, a)?;
-                if ring_membership.contains_edge(a, b) {
+                if small_ring_bonds.contains(a, b) {
                     return None;
                 }
                 Some(DoubleBondStereoCandidate { endpoint_a: a, endpoint_b: b, double_bond })
@@ -668,6 +710,12 @@ mod tests {
             ("F/C=C1.F/1", 1, 2, DoubleBondStereoConfig::Z),
             ("F1.F/C=C/1", 2, 3, DoubleBondStereoConfig::E),
             ("F1.F/C=C\\1", 2, 3, DoubleBondStereoConfig::Z),
+            ("C1CCCCC/C=C/1", 6, 7, DoubleBondStereoConfig::E),
+            ("C1CCCCC/C=C\\1", 6, 7, DoubleBondStereoConfig::Z),
+            ("C1=C/CCCCCC/1", 0, 1, DoubleBondStereoConfig::E),
+            ("C/1=C/CCCCCC1", 0, 1, DoubleBondStereoConfig::Z),
+            ("C1CCC2CCCC/C=C\\C2C1", 8, 9, DoubleBondStereoConfig::Z),
+            ("C1CCCC2=C1CCCCC/C=C/2", 11, 12, DoubleBondStereoConfig::E),
         ] {
             let smiles = parse(input);
             assert_eq!(smiles.double_bond_stereo_config(left, right), Some(expected), "{input}");
