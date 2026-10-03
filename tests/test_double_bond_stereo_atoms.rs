@@ -66,6 +66,8 @@ fn wildcard_substituent_geometry_distinguishes_isomers() {
         let smiles: WildcardSmiles = input.parse().expect("valid wildcard SMILES");
         for (a, b, x, y) in [(1, 3, 0, 4), (3, 1, 4, 0)] {
             let (left, right) = smiles.double_bond_stereo_atoms(a, b).expect("reference atoms");
+            let expected_atoms = if a == 1 { (2, 4) } else { (4, 2) };
+            assert_eq!((left, right), expected_atoms, "{input}");
             let config = smiles.double_bond_stereo_config(a, b).expect("assigned stereo");
             let cis = (config == DoubleBondStereoConfig::Z) ^ (x != left) ^ (y != right);
             assert_eq!(cis, expected_cis, "{input}");
