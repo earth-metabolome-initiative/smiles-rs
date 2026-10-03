@@ -738,8 +738,10 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     ///
     /// This is the chemistry-facing stereo classification derived from parsed
     /// directional single-bond tokens. It returns `None` when the edge is not
-    /// a double bond, when stereo was not specified, or when the surrounding
-    /// environment does not support a semantic alkene-stereo assignment.
+    /// a double bond, when stereo was not specified, when the double bond lies
+    /// in a ring of fewer than eight atoms (as in `RDKit`), or when the
+    /// surrounding environment does not support a semantic alkene-stereo
+    /// assignment.
     ///
     /// The label refers to [`Self::double_bond_stereo_atoms`].
     ///
