@@ -97,16 +97,15 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     }
 
     #[must_use]
-    pub(crate) fn semantic_double_bond_stereo_config(
+    pub(super) fn double_bond_stereo_record(
         &self,
         node_a: usize,
         node_b: usize,
-    ) -> Option<DoubleBondStereoConfig> {
+    ) -> Option<DoubleBondStereoRecord> {
         let edge_key = crate::smiles::edge_key(node_a, node_b);
-        self.double_bond_stereo_records().into_iter().find_map(|record| {
-            (crate::smiles::edge_key(record.double_bond.source(), record.double_bond.target())
-                == edge_key)
-                .then_some(record.config())
+        self.double_bond_stereo_records().into_iter().find(|record| {
+            crate::smiles::edge_key(record.double_bond.source(), record.double_bond.target())
+                == edge_key
         })
     }
 
