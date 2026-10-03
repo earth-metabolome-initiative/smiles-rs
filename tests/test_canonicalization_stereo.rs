@@ -61,6 +61,24 @@ fn canonicalize_converges_macrocyclic_natural_product_spellings() {
 }
 
 #[test]
+fn canonicalize_reads_no_alkene_stereo_from_atom_marks_on_cumulated_double_bonds() {
+    for input in [r"F[C@@H]=[C@](F)=O", r"F[C@H]=[C@](F)=O", r"O=[C@](F)=[C@@H]F"] {
+        let canonical = canonical_string(input);
+        assert!(!canonical.contains(['/', '\\']), "{input} canonicalized to {canonical}");
+    }
+}
+
+#[test]
+fn canonicalize_keeps_cumulene_stereo_next_to_non_stereogenic_alkene() {
+    for (trans, cis) in [
+        (r"F/C=C=C=C/C(C)=C(C)C", r"F/C=C=C=C\C(C)=C(C)C"),
+        (r"F/C=C=C=C/C=C(C)C", r"F/C=C=C=C\C=C(C)C"),
+    ] {
+        assert_ne!(canonical_string(trans), canonical_string(cis), "{trans} and {cis}");
+    }
+}
+
+#[test]
 fn canonicalize_converges_atom_based_alkene_stereo_equivalence_groups() {
     let groups = [
         &[
