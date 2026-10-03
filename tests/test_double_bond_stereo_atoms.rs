@@ -31,7 +31,9 @@ fn reference_atoms_are_absent_without_semantic_stereo() {
         ("CC=CC", 1, 2),
         ("F/C=C", 1, 2),
         ("F/C(F)=C/Br", 1, 3),
-        (r"C\1CCCCC/C=C1", 6, 7),
+        (r"C\1CCCC/C=C1", 5, 6),
+        ("C1CCC/C2=C/1CCCCCCC2", 4, 5),
+        ("C/1=C/2CCCC(C1)CC2", 0, 1),
         ("F/C=C/Br", 0, 1),
         ("F/C=C/Br", 1, 1),
         ("F/C=C/Br", 1, usize::MAX),
@@ -40,6 +42,30 @@ fn reference_atoms_are_absent_without_semantic_stereo() {
         assert_eq!(smiles.double_bond_stereo_config(a, b), None, "{input}");
         assert_eq!(smiles.double_bond_stereo_atoms(a, b), None, "{input}");
         assert_eq!(smiles.double_bond_stereo_atoms(b, a), None, "{input}");
+    }
+}
+
+#[test]
+fn ring_double_bonds_of_eight_or_more_atoms_carry_stereo() {
+    for (input, a, b, expected_atoms, expected_config) in [
+        ("C1CCCCC/C=C/1", 6, 7, (5, 0), DoubleBondStereoConfig::E),
+        (r"C1CCCCC/C=C\1", 6, 7, (5, 0), DoubleBondStereoConfig::Z),
+        (r"C\1CCCCC/C=C1", 6, 7, (5, 0), DoubleBondStereoConfig::E),
+        ("C1=C/CCCCCC/1", 0, 1, (7, 2), DoubleBondStereoConfig::E),
+        ("C1CCCCCC/C=C/1", 7, 8, (6, 0), DoubleBondStereoConfig::E),
+        (r"C1CCCCCCCCC/C=C\1", 10, 11, (9, 0), DoubleBondStereoConfig::Z),
+        ("C1CCC2CCCC/C=C/C2C1", 8, 9, (7, 10), DoubleBondStereoConfig::E),
+        (r"C1CCC2CCCC/C=C\C2C1", 8, 9, (7, 10), DoubleBondStereoConfig::Z),
+        ("C1CCCC2=C1CCCCC/C=C/2", 11, 12, (10, 4), DoubleBondStereoConfig::E),
+    ] {
+        let smiles: Smiles = input.parse().expect("valid SMILES");
+        assert_eq!(smiles.double_bond_stereo_config(a, b), Some(expected_config), "{input}");
+        assert_eq!(smiles.double_bond_stereo_atoms(a, b), Some(expected_atoms), "{input}");
+        assert_eq!(
+            smiles.double_bond_stereo_atoms(b, a),
+            Some((expected_atoms.1, expected_atoms.0)),
+            "{input}"
+        );
     }
 }
 

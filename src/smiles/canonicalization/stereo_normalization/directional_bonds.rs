@@ -1,4 +1,4 @@
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::vec::Vec;
 
 use geometric_traits::traits::{SparseMatrix2D, SparseValuedMatrix2DRef, SparseValuedMatrixRef};
 
@@ -8,7 +8,7 @@ use crate::{
     bond::Bond,
     smiles::{
         Smiles, StereoNeighbor,
-        double_bond_stereo::DoubleBondStereoConfig,
+        double_bond_stereo::{DoubleBondStereoConfig, SmallRingBonds},
         stereo::{DirectionalParityConstraint, directional_override_rows_from_parity_constraints},
     },
 };
@@ -59,12 +59,17 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     ) -> AtomBasedDoubleBondNormalization {
         let mut records = Vec::new();
         let mut clear_chirality = vec![false; self.nodes().len()];
+        let mut small_ring_bonds = SmallRingBonds::new(self);
 
         for ((row, column), entry) in self.bond_matrix().sparse_entries() {
             if row >= column || !non_aromatic_double_bond(*entry) {
                 continue;
             }
-            if !self.atom_based_double_bond_supports_semantic_stereo(row, column) {
+            if !self.atom_based_double_bond_supports_semantic_stereo(
+                row,
+                column,
+                &mut small_ring_bonds,
+            ) {
                 continue;
             }
             let Some((side_a, side_b)) =
@@ -131,7 +136,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         rooted_classes: &[usize],
         refined_classes: &[usize],
     ) -> NonSemanticDirectionalNormalization {
-        let ring_membership = self.ring_membership();
+        let mut small_ring_bonds = SmallRingBonds::new(self);
         let mut rows = vec![Vec::new(); self.nodes().len()];
 
         for ((endpoint_a, endpoint_b), entry) in self.bond_matrix().sparse_entries() {
@@ -151,7 +156,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             let directional_neighbors_b =
                 non_semantic_double_bond_directional_neighbors(self, endpoint_b, endpoint_a);
             if directional_neighbors_b.is_empty()
-                || ring_membership.contains_edge(endpoint_a, endpoint_b)
+                || small_ring_bonds.contains(endpoint_a, endpoint_b)
             {
                 continue;
             }
@@ -197,12 +202,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         &self,
         node_a: usize,
         node_b: usize,
+        small_ring_bonds: &mut SmallRingBonds<'_, AtomPolicy>,
     ) -> bool {
         self.atom_based_non_single_family_bond_count(node_a) == 1
             && self.atom_based_non_single_family_bond_count(node_b) == 1
-            && !self.atom_based_double_bond_is_in_cycle(node_a, node_b)
             && self.atom_based_endpoint_supports_semantic_stereo(node_a, node_b)
             && self.atom_based_endpoint_supports_semantic_stereo(node_b, node_a)
+            && !small_ring_bonds.contains(node_a, node_b)
     }
 
     fn atom_based_non_single_family_bond_count(&self, node_id: usize) -> usize {
@@ -210,30 +216,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             .sparse_row_values_ref(node_id)
             .filter(|entry| non_single_family_bond(**entry))
             .count()
-    }
-
-    fn atom_based_double_bond_is_in_cycle(&self, node_a: usize, node_b: usize) -> bool {
-        let mut queue = VecDeque::from([node_a]);
-        let mut seen = vec![false; self.nodes().len()];
-        seen[node_a] = true;
-
-        while let Some(current) = queue.pop_front() {
-            for neighbor in self.bond_matrix().sparse_row(current) {
-                if (current == node_a && neighbor == node_b)
-                    || (current == node_b && neighbor == node_a)
-                {
-                    continue;
-                }
-                if neighbor == node_b {
-                    return true;
-                }
-                if !seen[neighbor] {
-                    seen[neighbor] = true;
-                    queue.push_back(neighbor);
-                }
-            }
-        }
-        false
     }
 
     fn atom_based_endpoint_supports_semantic_stereo(
