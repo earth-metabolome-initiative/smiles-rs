@@ -262,7 +262,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         )
     }
 
-    /// Returns the canonical labeling of the current graph.
+    /// Returns canonical labels without orphan bond-direction markers.
     ///
     /// # Examples
     ///
@@ -303,7 +303,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             && self.kekulization_source == canonicalized.kekulization_source
     }
 
-    /// Returns the graph rewritten into canonical node order.
+    /// Returns the canonical graph without orphan bond-direction markers.
     ///
     /// # Examples
     ///

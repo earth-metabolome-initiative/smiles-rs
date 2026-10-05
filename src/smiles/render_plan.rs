@@ -679,10 +679,9 @@ fn planned_bond_for_emit<AtomPolicy: SmilesAtomPolicy>(
     descriptor.with_bond(bond)
 }
 
-/// Returns whether a raw directional single bond must be preserved because the
-/// surrounding double-bond environment is outside the current semantic stereo
-/// model.
-fn preserve_raw_directional_single<AtomPolicy: SmilesAtomPolicy>(
+/// Preserves raw directions in double-bond environments outside the semantic
+/// stereo model.
+pub(super) fn preserve_raw_directional_single<AtomPolicy: SmilesAtomPolicy>(
     smiles: &Smiles<AtomPolicy>,
     directional_overrides: &DirectionalBondOverrides,
     from: usize,
