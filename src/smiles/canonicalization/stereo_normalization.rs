@@ -6,7 +6,7 @@ use super::{Smiles, maybe_collapse_atom_to_organic_subset};
 use crate::{
     atom::{Atom, bracketed::chirality::Chirality},
     bond::Bond,
-    smiles::{BondMatrixBuilder, StereoNeighbor},
+    smiles::{BondMatrixBuilder, StereoNeighbor, render_plan::preserve_raw_directional_single},
 };
 
 pub(super) mod chirality;
@@ -71,9 +71,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             rooted_classes,
             refined_classes,
         );
-        let non_semantic_directional_normalization =
-            self.non_semantic_directional_normalization(rooted_classes, refined_classes);
-
         let normalized_atom_rows = self.stereo_normalized_atom_rows(
             new_index_of_old_node,
             rooted_classes,
@@ -95,16 +92,8 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             }
 
             let mut bond = entry.bond();
-            if let Some(override_bond) = atom_based_override_bond(
-                &non_semantic_directional_normalization.override_rows,
-                row,
-                column,
-            ) {
-                bond = override_bond;
-            }
             if matches!(bond, Bond::Up | Bond::Down)
-                && (directional_overrides.has_semantic_endpoint(row)
-                    || directional_overrides.has_semantic_endpoint(column)
+                && (!preserve_raw_directional_single(self, &directional_overrides, row, column)
                     || atom_based_double_bond_normalization.semantic_endpoints[row]
                     || atom_based_double_bond_normalization.semantic_endpoints[column])
             {

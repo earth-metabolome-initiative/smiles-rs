@@ -1,10 +1,8 @@
-use alloc::vec::Vec;
-
 use geometric_traits::traits::SparseValuedMatrixRef;
 
 use super::super::{
     Smiles, canonicalization_state_key,
-    support::{assert_canonicalization_invariants, permute_smiles, same_canonicalization_state},
+    support::{assert_canonicalization_invariants, same_canonicalization_state},
 };
 use crate::{bond::Bond, parser::smiles_parser::parse_wildcard_smiles, smiles::WildcardAtoms};
 
@@ -31,6 +29,22 @@ fn bond_count(smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>, bond: Bond)
         .sparse_entries()
         .filter(|((row, column), entry)| row < column && entry.bond() == bond)
         .count()
+}
+
+fn assert_orphan_single_bond_equivalence(
+    marked: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
+    unmarked: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
+) {
+    assert_canonicalization_invariants(marked);
+
+    let marked_canonical = marked.canonicalize();
+    let unmarked_canonical = unmarked.canonicalize();
+    same_canonicalization_state(&marked_canonical, &unmarked_canonical);
+    assert_eq!(
+        marked.canonical_labeling().order(),
+        unmarked.canonical_labeling().order(),
+        "orphan direction must not change the canonical rank ordering"
+    );
 }
 
 #[test]
@@ -138,22 +152,85 @@ fn canonicalize_handles_fuzz_crash_db6568a7_regression() {
 }
 
 #[test]
-fn canonical_convergence_for_reversed_orphan_directional_fragment() {
-    let smiles = wildcard_smiles("C/F\\Cl");
+fn regression_orphan_directional_single_wildcard_minimized() {
+    let marked = wildcard_smiles("*/C/CC");
+    let unmarked = wildcard_smiles("*-C-CC");
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
 
-    assert_canonicalization_invariants(&smiles);
+#[test]
+fn regression_orphan_directional_single_aromatic_wildcard_minimized() {
+    let marked = wildcard_smiles("*/c/cC");
+    let unmarked = wildcard_smiles("*-c-cC");
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
 
-    let canonicalized = smiles.canonicalize();
-    assert_eq!(
-        bond_count(&canonicalized, Bond::Up) + bond_count(&canonicalized, Bond::Down),
-        2,
-        "orphan directional bonds must survive canonicalization"
-    );
+#[test]
+fn regression_orphan_directional_single_reverse_traversal() {
+    let forward = wildcard_smiles(r"*/C\CC");
+    let reversed = wildcard_smiles(r"CC/C\*");
+    let unmarked = wildcard_smiles("*-C-CC");
+    assert_orphan_single_bond_equivalence(&forward, &unmarked);
+    same_canonicalization_state(&forward.canonicalize(), &reversed.canonicalize());
+}
 
-    let node_count = smiles.nodes().len();
-    let reversed: Vec<usize> = (0..node_count).rev().collect();
-    let permuted = permute_smiles(&smiles, &reversed);
-    same_canonicalization_state(&canonicalized, &permuted.canonicalize());
+#[test]
+fn regression_orphan_directional_single_concrete_chain() {
+    let marked = Smiles::from_str(r"C/F\Cl").unwrap();
+    let unmarked = Smiles::from_str("C-F-Cl").unwrap();
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_single_sparse_annotation() {
+    let marked = wildcard_smiles("CC/C/C");
+    let unmarked = wildcard_smiles("CC-C-C");
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_single_branch() {
+    let marked = wildcard_smiles("*(/C)*");
+    let unmarked = wildcard_smiles("*(C)*");
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_ring_closure_single() {
+    let marked = Smiles::from_str("C1CC/1").unwrap();
+    let unmarked = Smiles::from_str("C1CC1").unwrap();
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_single_disconnected_components() {
+    let marked = wildcard_smiles("*/C/CC.N");
+    let unmarked = wildcard_smiles("*-C-CC.N");
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+
+    let reordered = wildcard_smiles("N.*-C-CC");
+    same_canonicalization_state(&marked.canonicalize(), &reordered.canonicalize());
+}
+
+#[test]
+fn regression_orphan_directional_single_aromatic_concrete() {
+    let marked = Smiles::from_str("C/c/cC").unwrap();
+    let unmarked = Smiles::from_str("C-c-cC").unwrap();
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_single_tetrahedral_context() {
+    let marked = Smiles::from_str("[C@H](/C)(F)Cl").unwrap();
+    let unmarked = Smiles::from_str("[C@H](C)(F)Cl").unwrap();
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
+}
+
+#[test]
+fn regression_orphan_directional_single_isotope_context() {
+    let marked = Smiles::from_str("[13CH3]/[12CH3]").unwrap();
+    let unmarked = Smiles::from_str("[13CH3]-[12CH3]").unwrap();
+    assert_orphan_single_bond_equivalence(&marked, &unmarked);
 }
 
 #[test]

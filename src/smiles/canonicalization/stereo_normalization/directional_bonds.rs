@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use geometric_traits::traits::{SparseMatrix2D, SparseValuedMatrix2DRef, SparseValuedMatrixRef};
+use geometric_traits::traits::{SparseValuedMatrix2DRef, SparseValuedMatrixRef};
 
 use super::chirality::stereo_chirality_normal_form;
 use crate::{
@@ -18,11 +18,6 @@ pub(super) struct AtomBasedDoubleBondNormalization {
     pub(super) override_rows: Vec<Vec<(usize, Bond)>>,
     pub(super) semantic_endpoints: Vec<bool>,
     pub(super) clear_chirality: Vec<bool>,
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct NonSemanticDirectionalNormalization {
-    pub(super) override_rows: Vec<Vec<(usize, Bond)>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -129,73 +124,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             semantic_endpoints,
             clear_chirality,
         }
-    }
-
-    pub(super) fn non_semantic_directional_normalization(
-        &self,
-        rooted_classes: &[usize],
-        refined_classes: &[usize],
-    ) -> NonSemanticDirectionalNormalization {
-        let mut small_ring_bonds = SmallRingBonds::new(self);
-        let mut rows = vec![Vec::new(); self.nodes().len()];
-
-        for ((endpoint_a, endpoint_b), entry) in self.bond_matrix().sparse_entries() {
-            if endpoint_a >= endpoint_b || !non_aromatic_double_bond(*entry) {
-                continue;
-            }
-            if !non_semantic_double_bond_supports_semantic_stereo(self, endpoint_a, endpoint_b) {
-                continue;
-            }
-
-            let directional_neighbors_a =
-                non_semantic_double_bond_directional_neighbors(self, endpoint_a, endpoint_b);
-            if directional_neighbors_a.is_empty() {
-                continue;
-            }
-
-            let directional_neighbors_b =
-                non_semantic_double_bond_directional_neighbors(self, endpoint_b, endpoint_a);
-            if directional_neighbors_b.is_empty()
-                || small_ring_bonds.contains(endpoint_a, endpoint_b)
-            {
-                continue;
-            }
-
-            let side_a = non_semantic_double_bond_has_unique_reference_substituent(
-                self,
-                endpoint_a,
-                endpoint_b,
-                rooted_classes,
-                refined_classes,
-            );
-            let side_b = non_semantic_double_bond_has_unique_reference_substituent(
-                self,
-                endpoint_b,
-                endpoint_a,
-                rooted_classes,
-                refined_classes,
-            );
-
-            if side_a.is_some() && side_b.is_some() {
-                continue;
-            }
-
-            for directional_neighbor in directional_neighbors_a {
-                let (left, right) = crate::smiles::edge_key(endpoint_a, directional_neighbor);
-                rows[left].push((right, Bond::Single));
-            }
-            for directional_neighbor in directional_neighbors_b {
-                let (left, right) = crate::smiles::edge_key(endpoint_b, directional_neighbor);
-                rows[left].push((right, Bond::Single));
-            }
-        }
-
-        for row in &mut rows {
-            row.sort_unstable_by_key(|&(neighbor, _)| neighbor);
-            row.dedup_by_key(|entry| entry.0);
-        }
-
-        NonSemanticDirectionalNormalization { override_rows: rows }
     }
 
     fn atom_based_double_bond_supports_semantic_stereo(
@@ -366,25 +294,6 @@ pub(super) fn atom_based_substituent_priority_key(
     }
 }
 
-fn non_semantic_double_bond_supports_semantic_stereo(
-    smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
-    node_a: usize,
-    node_b: usize,
-) -> bool {
-    smiles
-        .bond_matrix()
-        .sparse_row_values_ref(node_a)
-        .filter(|entry| non_single_family_bond(**entry))
-        .count()
-        == 1
-        && smiles
-            .bond_matrix()
-            .sparse_row_values_ref(node_b)
-            .filter(|entry| non_single_family_bond(**entry))
-            .count()
-            == 1
-}
-
 #[inline]
 fn non_aromatic_double_bond(entry: crate::smiles::BondEntry) -> bool {
     entry.bond() == Bond::Double && !entry.aromatic()
@@ -393,67 +302,6 @@ fn non_aromatic_double_bond(entry: crate::smiles::BondEntry) -> bool {
 #[inline]
 fn non_single_family_bond(entry: crate::smiles::BondEntry) -> bool {
     entry.aromatic() || !matches!(entry.bond(), Bond::Single | Bond::Up | Bond::Down)
-}
-
-fn non_semantic_double_bond_directional_neighbors(
-    smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
-    endpoint: usize,
-    opposite_endpoint: usize,
-) -> Vec<usize> {
-    smiles
-        .bond_matrix()
-        .sparse_row(endpoint)
-        .zip(smiles.bond_matrix().sparse_row_values_ref(endpoint))
-        .filter_map(|(neighbor, entry)| {
-            (neighbor != opposite_endpoint && matches!(entry.bond(), Bond::Up | Bond::Down))
-                .then_some(neighbor)
-        })
-        .collect()
-}
-
-fn non_semantic_double_bond_has_unique_reference_substituent(
-    smiles: &Smiles<impl crate::smiles::SmilesAtomPolicy>,
-    endpoint: usize,
-    opposite_endpoint: usize,
-    rooted_classes: &[usize],
-    refined_classes: &[usize],
-) -> Option<usize> {
-    let neighbors = smiles
-        .bond_matrix()
-        .sparse_row(endpoint)
-        .filter(|&neighbor| neighbor != opposite_endpoint)
-        .collect::<Vec<_>>();
-    let (&first, rest) = neighbors.split_first()?;
-    let mut best = first;
-    let mut best_key = atom_based_substituent_priority_key(
-        smiles,
-        endpoint,
-        best,
-        rooted_classes,
-        refined_classes,
-    );
-    let mut unique_best = true;
-
-    for &candidate in rest {
-        let candidate_key = atom_based_substituent_priority_key(
-            smiles,
-            endpoint,
-            candidate,
-            rooted_classes,
-            refined_classes,
-        );
-        match candidate_key.cmp(&best_key) {
-            core::cmp::Ordering::Greater => {
-                best = candidate;
-                best_key = candidate_key;
-                unique_best = true;
-            }
-            core::cmp::Ordering::Equal => unique_best = false,
-            core::cmp::Ordering::Less => {}
-        }
-    }
-
-    unique_best.then_some(best)
 }
 
 fn atom_based_chirality_is_clockwise(chirality: Chirality) -> bool {
