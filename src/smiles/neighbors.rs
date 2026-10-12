@@ -65,10 +65,15 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             return Vec::new();
         }
 
-        self.ordered_neighbor_edges_table_with_planning(invariants, refined_classes, rooted_classes)
-            .into_iter()
-            .nth(node_id)
-            .unwrap_or_default()
+        self.ordered_neighbor_edges_table_with_planning(
+            invariants,
+            refined_classes,
+            rooted_classes,
+            None,
+        )
+        .into_iter()
+        .nth(node_id)
+        .unwrap_or_default()
     }
 
     #[must_use]
@@ -77,7 +82,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         invariants: &[AtomInvariant],
         refined_classes: &[usize],
         rooted_classes: &[usize],
+        forced_root: Option<usize>,
     ) -> Vec<Vec<BondEdge>> {
+        let canonical_rank = self.canonical_tie_break_rank(rooted_classes, forced_root);
         let mut ordered_rows = Vec::with_capacity(self.atom_nodes.len());
         for node_id in 0..self.atom_nodes.len() {
             ordered_rows.push(self.ordered_neighbor_edges_row_with_planning(
@@ -85,6 +92,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 invariants,
                 refined_classes,
                 rooted_classes,
+                canonical_rank.as_deref(),
             ));
         }
         ordered_rows
@@ -98,6 +106,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         invariants: &[AtomInvariant],
         refined_classes: &[usize],
         rooted_classes: &[usize],
+        canonical_rank: Option<&[usize]>,
     ) -> Vec<BondEdge> {
         let mut neighbors: Vec<(NeighborOrderKey, usize, usize, BondEdge)> = self
             .bond_matrix
@@ -115,10 +124,12 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             .collect();
 
         neighbors.sort_unstable_by(|left, right| {
-            left.0
-                .cmp(&right.0)
-                .then_with(|| left.1.cmp(&right.1))
-                .then_with(|| left.2.cmp(&right.2))
+            left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)).then_with(|| {
+                match canonical_rank {
+                    Some(rank) => rank[left.2].cmp(&rank[right.2]),
+                    None => left.2.cmp(&right.2),
+                }
+            })
         });
         neighbors.into_iter().map(|(_, _, _, edge)| edge).collect()
     }

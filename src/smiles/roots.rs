@@ -55,6 +55,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         rooted_classes: &[usize],
     ) -> Vec<usize> {
         let rooted_partition_sizes = rooted_partition_sizes(rooted_classes);
+        let canonical_rank = self.canonical_tie_break_rank(rooted_classes, None);
+        let tie_break =
+            |node_id: usize| canonical_rank.as_ref().map_or(node_id, |rank| rank[node_id]);
         let components = self.connected_components();
         let mut roots = Vec::with_capacity(components.number_of_components());
 
@@ -74,7 +77,9 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                     &rooted_partition_sizes,
                     node_id,
                 );
-                if candidate_key < best_key || (candidate_key == best_key && node_id < best) {
+                if candidate_key < best_key
+                    || (candidate_key == best_key && tie_break(node_id) < tie_break(best))
+                {
                     best = node_id;
                     best_key = candidate_key;
                 }

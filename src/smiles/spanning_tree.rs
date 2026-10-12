@@ -108,7 +108,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         let refined = self.refined_atom_classes_from_invariants(&invariants);
         let rooted = self.rooted_symmetry_classes_from_refined(refined.classes());
         let roots = self.component_roots_from_planning(&invariants, &rooted);
-        self.spanning_forest_with_planning(&roots, &invariants, refined.classes(), &rooted)
+        self.spanning_forest_with_planning(&roots, &invariants, refined.classes(), &rooted, None)
     }
 
     #[must_use]
@@ -118,11 +118,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         invariants: &[AtomInvariant],
         refined_classes: &[usize],
         rooted_classes: &[usize],
+        forced_root: Option<usize>,
     ) -> SpanningForest {
         let ordered_neighbors = self.ordered_neighbor_edges_table_with_planning(
             invariants,
             refined_classes,
             rooted_classes,
+            forced_root,
         );
         self.spanning_forest_with_ordered_neighbors(roots, &ordered_neighbors)
     }
@@ -282,12 +284,12 @@ mod tests {
         let smiles: Smiles = "C1CC1".parse().unwrap();
         let forest = smiles.spanning_forest();
 
-        assert_eq!(forest.roots(), &[0]);
-        assert_eq!(forest.parent_of(0), None);
-        assert_eq!(forest.parent_of(1), Some(0));
-        assert_eq!(forest.parent_of(2), Some(1));
-        assert_eq!(forest.children_of(0), &[1]);
-        assert_eq!(forest.children_of(1), &[2]);
+        assert_eq!(forest.roots(), &[2]);
+        assert_eq!(forest.parent_of(2), None);
+        assert_eq!(forest.parent_of(1), Some(2));
+        assert_eq!(forest.parent_of(0), Some(1));
+        assert_eq!(forest.children_of(2), &[1]);
+        assert_eq!(forest.children_of(1), &[0]);
         assert_eq!(forest.closure_edges(), &[smiles.edge_for_node_pair((0, 2)).unwrap()]);
     }
 
@@ -296,13 +298,13 @@ mod tests {
         let smiles: Smiles = "C1CC1.CC".parse().unwrap();
         let forest = smiles.spanning_forest();
 
-        assert_eq!(forest.roots(), &[0, 3]);
-        assert_eq!(forest.parent_of(0), None);
-        assert_eq!(forest.parent_of(1), Some(0));
-        assert_eq!(forest.parent_of(2), Some(1));
-        assert_eq!(forest.parent_of(3), None);
-        assert_eq!(forest.parent_of(4), Some(3));
-        assert_eq!(forest.children_of(3), &[4]);
+        assert_eq!(forest.roots(), &[2, 4]);
+        assert_eq!(forest.parent_of(2), None);
+        assert_eq!(forest.parent_of(1), Some(2));
+        assert_eq!(forest.parent_of(0), Some(1));
+        assert_eq!(forest.parent_of(4), None);
+        assert_eq!(forest.parent_of(3), Some(4));
+        assert_eq!(forest.children_of(4), &[3]);
         assert_eq!(forest.closure_edges(), &[smiles.edge_for_node_pair((0, 2)).unwrap()]);
     }
 

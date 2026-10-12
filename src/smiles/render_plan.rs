@@ -316,11 +316,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 &invariants,
                 &refined_classes,
                 &rooted_classes,
+                forced_root,
             ),
             &invariants,
             &refined_classes,
             &rooted_classes,
             node_count,
+            forced_root,
         );
         let ordering = if primary.max_assigned_label > 99 {
             let fallback = build_render_ordering(
@@ -330,6 +332,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 &refined_classes,
                 &rooted_classes,
                 node_count,
+                forced_root,
             );
             if fallback.max_assigned_label < primary.max_assigned_label {
                 fallback
@@ -412,9 +415,15 @@ fn build_render_ordering<AtomPolicy: SmilesAtomPolicy>(
     refined_classes: &[usize],
     rooted_classes: &[usize],
     node_count: usize,
+    forced_root: Option<usize>,
 ) -> RenderOrdering {
-    let branch_plan =
-        smiles.branch_plan_with_planning(&forest, invariants, refined_classes, rooted_classes);
+    let branch_plan = smiles.branch_plan_with_planning(
+        &forest,
+        invariants,
+        refined_classes,
+        rooted_classes,
+        forced_root,
+    );
     let (components, preorder_indices, global_preorder) =
         build_component_preorders(&forest, &branch_plan, node_count);
     let directional_overrides = smiles.projected_directional_bond_overrides_with_classes(
@@ -844,13 +853,12 @@ mod tests {
             &[StereoNeighbor::Atom(1), StereoNeighbor::Atom(3)]
         );
     }
-
     #[test]
     fn render_plan_assigns_ring_labels_from_final_preorder() {
         let smiles: Smiles = "C1CC1".parse().unwrap();
         let plan = smiles.render_plan();
 
-        assert_eq!(plan.components()[0].preorder(), &[0, 1, 2]);
+        assert_eq!(plan.components()[0].preorder(), &[2, 1, 0]);
 
         let node_0 = plan.node(0).unwrap();
         let node_2 = plan.node(2).unwrap();
@@ -868,17 +876,17 @@ mod tests {
         let plan = plan("CC(C)O");
         let node_1 = plan.node(1).unwrap();
 
-        assert_eq!(node_1.parent(), Some(0));
+        assert_eq!(node_1.parent(), Some(2));
         assert_eq!(node_1.ordered_children().len(), 2);
         assert_eq!(node_1.branch_children().len(), 1);
         assert_eq!(node_1.continuation_child().map(|child| child.child()), Some(3));
         assert_eq!(
             node_1.branch_children().iter().map(super::ChildRenderPlan::child).collect::<Vec<_>>(),
-            vec![2]
+            vec![0]
         );
         assert_eq!(
             node_1.emitted_stereo_neighbors(),
-            &[StereoNeighbor::Atom(0), StereoNeighbor::Atom(2), StereoNeighbor::Atom(3)]
+            &[StereoNeighbor::Atom(2), StereoNeighbor::Atom(0), StereoNeighbor::Atom(3)]
         );
     }
 

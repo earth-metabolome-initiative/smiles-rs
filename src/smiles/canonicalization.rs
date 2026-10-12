@@ -87,6 +87,28 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         self.canonical_labeling_with(Self::exact_canonical_labeling_whole_graph)
     }
 
+    /// Exact canonical labeling with `root` forced to rank `0`.
+    ///
+    /// Giving `root` a uniquely small vertex color (so it alone sorts first)
+    /// individualizes it before the search runs, which is what makes the
+    /// result equivariant under renumbering even when the rest of the graph
+    /// has a genuine automorphism `root` doesn't participate in: any two
+    /// labelings of the same abstract graph with "the same" semantic atom
+    /// forced first agree on every atom's rank, not just the root's.
+    pub(super) fn exact_canonical_labeling_rooted(&self, root: usize) -> SmilesCanonicalLabeling {
+        let result = CanonicalLabeling::canonical_labeling(
+            self,
+            |node_id| (node_id != root, canonical_atom_label(self.nodes()[node_id])),
+            |node_a, node_b| {
+                canonical_bond_label(
+                    self.bond_entry_for_node_pair((node_a, node_b))
+                        .unwrap_or_else(|| unreachable!("canonizer only queries existing edges")),
+                )
+            },
+        );
+        SmilesCanonicalLabeling::new(result.order)
+    }
+
     fn exact_canonical_labeling_whole_graph(&self) -> SmilesCanonicalLabeling {
         self.canonical_labeling_whole_graph(canonical_atom_label, canonical_bond_label)
     }
@@ -124,7 +146,10 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         self.exact_canonicalize_with_labeling(&labeling)
     }
 
-    fn exact_canonicalize_with_labeling(&self, labeling: &SmilesCanonicalLabeling) -> Self {
+    pub(super) fn exact_canonicalize_with_labeling(
+        &self,
+        labeling: &SmilesCanonicalLabeling,
+    ) -> Self {
         let order = labeling.order();
         let new_index_of_old_node = labeling.new_index_of_old_node();
 

@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::{string::String, vec, vec::Vec};
 use core::fmt::Write;
 
 use super::{Smiles, SmilesAtomPolicy, render_plan::RenderPlan};
@@ -21,8 +21,80 @@ pub(crate) fn emit_rooted<AtomPolicy: SmilesAtomPolicy>(
     smiles: &Smiles<AtomPolicy>,
     root: usize,
 ) -> String {
+    rooted_orbit_min(smiles, root).0
+}
+
+/// Returns the traversal order (original atom ids) backing
+/// [`emit_rooted`]'s output.
+#[must_use]
+pub(crate) fn rooted_traversal_order<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+    root: usize,
+) -> Vec<usize> {
+    rooted_orbit_min(smiles, root).1
+}
+
+/// Returns the lexicographically smallest `(string, original_atom_order)`
+/// reachable by repeatedly relabeling `smiles` to its root-individualized
+/// exact canonical form and rendering that, until the sequence of rendered
+/// strings cycles.
+///
+/// WL refinement (`rooted_classes`) cannot always break ties between atoms
+/// that are genuinely interchangeable under a molecular symmetry (a true
+/// graph automorphism), and individualizing `root` in the exact canonizer
+/// only breaks the automorphisms that move `root`: a symmetry that fixes
+/// `root` while swapping other atoms can still make the exact labeling's own
+/// tie-break numbering-dependent, which a single relabel-and-render pass
+/// cannot detect. Iterating the relabel step and comparing rendered text
+/// mirrors `Smiles::canonicalize`'s `canonicalize_orbit_min`: each round
+/// starts from the previous round's *relabeled* graph (never from reparsed
+/// text, whose left-to-right numbering would just reintroduce the same
+/// bias), so a round that is already a fixed point of the relabeling stays
+/// one, and a residual automorphism instead shows up as a short cycle whose
+/// lexicographic minimum is numbering-independent by construction. The loop
+/// only runs when `has_tied_rooted_classes` finds a real tie, so molecules
+/// without one keep paying for a single render pass.
+fn rooted_orbit_min<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+    root: usize,
+) -> (String, Vec<usize>) {
     let plan = smiles.render_plan_with_root(Some(root));
-    emit_with_plan(smiles, &plan)
+    let first_order = plan.traversal_order();
+    let first_string = emit_with_plan(smiles, &plan);
+
+    if !smiles.has_tied_rooted_classes() {
+        return (first_string, first_order);
+    }
+
+    let mut strings = vec![first_string];
+    let mut orders = vec![first_order];
+    let initial_labeling = smiles.exact_canonical_labeling_rooted(root);
+    let mut current_order: Vec<usize> = initial_labeling.order().to_vec();
+    let mut current_root = initial_labeling.new_index_of_old_node()[root];
+    let mut current_graph = smiles.exact_canonicalize_with_labeling(&initial_labeling);
+
+    loop {
+        let plan = current_graph.render_plan_with_root(Some(current_root));
+        let string = emit_with_plan(&current_graph, &plan);
+
+        if let Some(cycle_start) = strings.iter().position(|existing| *existing == string) {
+            let best = (cycle_start..strings.len())
+                .min_by(|&left, &right| strings[left].cmp(&strings[right]))
+                .unwrap_or_else(|| unreachable!("cycle slice is non-empty"));
+            return (strings.swap_remove(best), orders.swap_remove(best));
+        }
+
+        strings.push(string);
+        orders.push(current_order.clone());
+
+        let labeling = current_graph.exact_canonical_labeling_rooted(current_root);
+        let next_order: Vec<usize> =
+            labeling.order().iter().map(|&local| current_order[local]).collect();
+        let next_root = labeling.new_index_of_old_node()[current_root];
+        current_graph = current_graph.exact_canonicalize_with_labeling(&labeling);
+        current_order = next_order;
+        current_root = next_root;
+    }
 }
 
 /// Emits a SMILES string from a completed render plan.

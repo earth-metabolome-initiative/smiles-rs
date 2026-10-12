@@ -1263,7 +1263,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     #[must_use]
     pub fn canonical_labeling_rooted(&self, root: usize) -> SmilesCanonicalLabeling {
         assert!(root < self.nodes().len(), "canonical_labeling_rooted: root {root} out of range");
-        let order = self.render_plan_with_root(Some(root)).traversal_order();
+        let order = self::emitter::rooted_traversal_order(self, root);
         SmilesCanonicalLabeling::from_order(order)
     }
 

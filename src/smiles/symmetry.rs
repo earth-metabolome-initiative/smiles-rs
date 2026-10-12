@@ -22,6 +22,42 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         self.rooted_symmetry_classes_from_refined(refined.classes())
     }
 
+    /// Returns a per-atom rank that is consistent under graph renumbering,
+    /// for breaking ties the WL refinement in `rooted_classes` left open.
+    /// `None` when `rooted_classes` already distinguishes every atom, so the
+    /// exact (expensive) canonical labeling only runs for genuinely
+    /// symmetric neighborhoods. `forced_root`, when given, is individualized
+    /// in the exact search so the rank stays consistent under renumbering
+    /// for ties that involve the root (see
+    /// [`Smiles::exact_canonical_labeling_rooted`]).
+    #[must_use]
+    pub(crate) fn canonical_tie_break_rank(
+        &self,
+        rooted_classes: &[usize],
+        forced_root: Option<usize>,
+    ) -> Option<Vec<usize>> {
+        if classes_are_unique(rooted_classes) {
+            None
+        } else {
+            let labeling = match forced_root {
+                Some(root) => self.exact_canonical_labeling_rooted(root),
+                None => self.exact_canonical_labeling(),
+            };
+            Some(labeling.new_index_of_old_node().to_vec())
+        }
+    }
+
+    /// Cheap (WL-only) check for whether any atom shares its `rooted_class`
+    /// with another, used to skip the orbit-min relabeling loop when the WL
+    /// partition alone already guarantees a unique neighbor order.
+    #[must_use]
+    pub(crate) fn has_tied_rooted_classes(&self) -> bool {
+        let invariants = self.atom_invariants();
+        let refined = self.refined_atom_classes_from_invariants(&invariants);
+        let rooted = self.rooted_symmetry_classes_from_refined(refined.classes());
+        !classes_are_unique(&rooted)
+    }
+
     #[must_use]
     pub(crate) fn rooted_symmetry_classes_from_refined(
         &self,
