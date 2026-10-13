@@ -342,4 +342,51 @@ mod tests {
             "#"
         );
     }
+
+    /// Asserts that rendering, reparsing, and rendering again is a no-op,
+    /// the property the `rooted_render` and `roundtrip` fuzz targets check
+    /// continuously; a molecule with a real automorphism exercises the
+    /// `orbit_min` relabeling path, and one without exercises its fast path.
+    fn assert_render_is_idempotent(data: &str) {
+        let first = render(data);
+        let reparsed: Smiles = first.parse().unwrap();
+        let second = emit(&reparsed);
+        assert_eq!(first, second, "render of {data:?} is not stable across a reparse");
+    }
+    #[test]
+    fn render_resolves_a_genuine_automorphism_to_its_lexicographic_minimum() {
+        // The degree-2 `[C@]` here has two structurally identical `C`
+        // substituents (a true automorphism `orbit_min`'s loop must run past
+        // its first two rounds for), so only one of `@`/`@@` is reachable as
+        // the stable, lexicographically smallest answer.
+        assert_eq!(render("[C@](C)C"), "C[C@@]C");
+    }
+
+    #[test]
+    fn render_is_idempotent_without_a_tie() {
+        for data in ["CCO", "CC(C)O", "c1ccccc1", "N[C@@H](C)C(=O)O"] {
+            assert_render_is_idempotent(data);
+        }
+    }
+
+    #[test]
+    fn render_is_idempotent_with_a_genuine_automorphism() {
+        for data in ["C1CC1", "[C@](C)C", "C1CCCC2(CC1)CCCCCC2", "C12C3C4C1C5C2C3C45"] {
+            assert_render_is_idempotent(data);
+        }
+    }
+
+    #[test]
+    fn render_rooted_is_idempotent_with_a_genuine_automorphism() {
+        // `render_rooted` writes its root as the first atom of a connected
+        // graph's traversal, so the root is always local atom `0` again
+        // after a reparse.
+        let smiles: Smiles = "C1CCCC2(CC1)CCCCCC2".parse().unwrap();
+        for root in 0..smiles.nodes().len() {
+            let first = smiles.render_rooted(root);
+            let reparsed: Smiles = first.parse().unwrap();
+            let second = reparsed.render_rooted(0);
+            assert_eq!(first, second, "render_rooted at {root} is not stable across a reparse");
+        }
+    }
 }

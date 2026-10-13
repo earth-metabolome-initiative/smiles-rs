@@ -207,3 +207,32 @@ fn register_local(
     }
     *local
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::Smiles;
+
+    /// Regression test for ClusterFuzzLite run 38211063533: an environment
+    /// fragment with two chemically-equivalent explicit `[H]` atoms (a
+    /// genuine graph automorphism) rendered a different ring-closure digit
+    /// depending only on which order its atoms were handed to
+    /// `fragment_from_atoms`.
+    #[test]
+    fn render_rooted_is_independent_of_fragment_atom_order() {
+        let smiles: Smiles = "c1[H]N0cc1c[H]0nc1c[H]0N#1c[H]0nccc".parse().unwrap();
+        let center = 0;
+        let radius = 3;
+        let environment = smiles.atom_environment(center, radius).unwrap();
+        let atoms: Vec<usize> = environment.atoms().collect();
+        let reversed: Vec<usize> = atoms.iter().rev().copied().collect();
+
+        let forward =
+            smiles.fragment_from_atoms(atoms).unwrap().render_rooted(center, false).unwrap();
+        let backward =
+            smiles.fragment_from_atoms(reversed).unwrap().render_rooted(center, false).unwrap();
+
+        assert_eq!(forward, backward);
+    }
+}
