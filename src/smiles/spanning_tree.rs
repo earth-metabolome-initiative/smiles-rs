@@ -284,12 +284,12 @@ mod tests {
         let smiles: Smiles = "C1CC1".parse().unwrap();
         let forest = smiles.spanning_forest();
 
-        assert_eq!(forest.roots(), &[2]);
-        assert_eq!(forest.parent_of(2), None);
-        assert_eq!(forest.parent_of(1), Some(2));
-        assert_eq!(forest.parent_of(0), Some(1));
-        assert_eq!(forest.children_of(2), &[1]);
-        assert_eq!(forest.children_of(1), &[0]);
+        assert_eq!(forest.roots(), &[0]);
+        assert_eq!(forest.parent_of(0), None);
+        assert_eq!(forest.parent_of(1), Some(0));
+        assert_eq!(forest.parent_of(2), Some(1));
+        assert_eq!(forest.children_of(0), &[1]);
+        assert_eq!(forest.children_of(1), &[2]);
         assert_eq!(forest.closure_edges(), &[smiles.edge_for_node_pair((0, 2)).unwrap()]);
     }
 
@@ -298,13 +298,13 @@ mod tests {
         let smiles: Smiles = "C1CC1.CC".parse().unwrap();
         let forest = smiles.spanning_forest();
 
-        assert_eq!(forest.roots(), &[2, 4]);
-        assert_eq!(forest.parent_of(2), None);
-        assert_eq!(forest.parent_of(1), Some(2));
-        assert_eq!(forest.parent_of(0), Some(1));
-        assert_eq!(forest.parent_of(4), None);
-        assert_eq!(forest.parent_of(3), Some(4));
-        assert_eq!(forest.children_of(4), &[3]);
+        assert_eq!(forest.roots(), &[0, 3]);
+        assert_eq!(forest.parent_of(0), None);
+        assert_eq!(forest.parent_of(1), Some(0));
+        assert_eq!(forest.parent_of(2), Some(1));
+        assert_eq!(forest.parent_of(3), None);
+        assert_eq!(forest.parent_of(4), Some(3));
+        assert_eq!(forest.children_of(3), &[4]);
         assert_eq!(forest.closure_edges(), &[smiles.edge_for_node_pair((0, 2)).unwrap()]);
     }
 

@@ -337,10 +337,10 @@ mod tests {
             ],
         );
         let plan = smiles.branch_plan();
-        assert_eq!(plan.ordered_children(0), &[1, 3]);
+        assert_eq!(plan.ordered_children(0), &[2, 3]);
         assert_eq!(plan.continuation_child(0), Some(3));
-        assert_eq!(plan.branch_children(0), &[1]);
-        assert_ne!(plan.subtree_signature(1), plan.subtree_signature(3));
+        assert_eq!(plan.branch_children(0), &[2]);
+        assert_ne!(plan.subtree_signature(2), plan.subtree_signature(3));
     }
 
     #[test]
@@ -354,10 +354,10 @@ mod tests {
             ],
         );
         let plan = smiles.branch_plan();
-        assert_eq!(plan.ordered_children(0), &[2, 1]);
-        assert_eq!(plan.continuation_child(0), Some(1));
-        assert_eq!(plan.branch_children(0), &[2]);
-        assert_eq!(plan.subtree_signature(2), plan.subtree_signature(1));
+        assert_eq!(plan.ordered_children(0), &[3, 2]);
+        assert_eq!(plan.continuation_child(0), Some(2));
+        assert_eq!(plan.branch_children(0), &[3]);
+        assert_eq!(plan.subtree_signature(2), plan.subtree_signature(3));
     }
 
     #[test]

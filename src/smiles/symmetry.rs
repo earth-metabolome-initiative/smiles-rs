@@ -372,4 +372,31 @@ mod tests {
             &[0, 6, 0, 6, 0, 6, 0, 6, 0, 0],
         );
     }
+
+    #[test]
+    fn has_tied_rooted_classes_is_false_for_an_asymmetric_molecule() {
+        assert!(!parse("CCO").has_tied_rooted_classes());
+    }
+
+    #[test]
+    fn has_tied_rooted_classes_is_true_for_a_symmetric_molecule() {
+        assert!(parse("C1CC1").has_tied_rooted_classes());
+    }
+
+    #[test]
+    fn canonical_tie_break_rank_is_none_without_a_tie() {
+        let smiles = parse("CCO");
+        let rooted = smiles.rooted_symmetry_classes();
+        assert_eq!(smiles.canonical_tie_break_rank(&rooted, None), None);
+    }
+
+    #[test]
+    fn canonical_tie_break_rank_individualizes_the_forced_root() {
+        let smiles = parse("C1CC1");
+        let rooted = smiles.rooted_symmetry_classes();
+        let rank = smiles
+            .canonical_tie_break_rank(&rooted, Some(1))
+            .expect("cyclopropane atoms are WL-tied");
+        assert_eq!(rank[1], 0, "individualized root must rank first");
+    }
 }

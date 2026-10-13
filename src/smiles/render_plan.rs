@@ -255,7 +255,30 @@ struct RenderOrdering {
 }
 
 impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
-    /// Builds the complete traversal-and-emission plan for this graph.
+    /// Test-only convenience for the unrooted plan.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn render_plan(&self) -> RenderPlan {
+        self.render_plan_with_root(None)
+    }
+
+    /// Replaces the chosen root of `forced`'s connected component with
+    /// `forced`, leaving the roots of other components untouched.
+    fn force_component_root(&self, roots: &mut [usize], forced: usize) {
+        let components = self.connected_components();
+        let target = components.component_of_node(forced);
+        for root in roots.iter_mut() {
+            if components.component_of_node(*root) == target {
+                *root = forced;
+                break;
+            }
+        }
+    }
+
+    /// Builds the complete traversal-and-emission plan for this graph,
+    /// optionally forcing the traversal of one connected component to start
+    /// at `forced_root`. Other components keep their deterministically
+    /// chosen roots.
     ///
     /// This is the planning half of display. It computes every ordering and
     /// normalization decision that affects the final string, then hands the
@@ -278,27 +301,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// forest based on parser bond order is also evaluated and used only if it
     /// lowers the maximum label. This is a best-effort reduction step, not a
     /// proof that the final plan will always stay below `100`.
-    #[must_use]
-    pub(crate) fn render_plan(&self) -> RenderPlan {
-        self.render_plan_with_root(None)
-    }
-
-    /// Replaces the chosen root of `forced`'s connected component with
-    /// `forced`, leaving the roots of other components untouched.
-    fn force_component_root(&self, roots: &mut [usize], forced: usize) {
-        let components = self.connected_components();
-        let target = components.component_of_node(forced);
-        for root in roots.iter_mut() {
-            if components.component_of_node(*root) == target {
-                *root = forced;
-                break;
-            }
-        }
-    }
-
-    /// Builds a render plan, optionally forcing the traversal of one connected
-    /// component to start at `forced_root`. Other components keep their
-    /// deterministically chosen roots.
     pub(crate) fn render_plan_with_root(&self, forced_root: Option<usize>) -> RenderPlan {
         let node_count = self.nodes().len();
         let invariants = self.atom_invariants();
@@ -858,7 +860,7 @@ mod tests {
         let smiles: Smiles = "C1CC1".parse().unwrap();
         let plan = smiles.render_plan();
 
-        assert_eq!(plan.components()[0].preorder(), &[2, 1, 0]);
+        assert_eq!(plan.components()[0].preorder(), &[0, 1, 2]);
 
         let node_0 = plan.node(0).unwrap();
         let node_2 = plan.node(2).unwrap();
@@ -876,17 +878,17 @@ mod tests {
         let plan = plan("CC(C)O");
         let node_1 = plan.node(1).unwrap();
 
-        assert_eq!(node_1.parent(), Some(2));
+        assert_eq!(node_1.parent(), Some(0));
         assert_eq!(node_1.ordered_children().len(), 2);
         assert_eq!(node_1.branch_children().len(), 1);
         assert_eq!(node_1.continuation_child().map(|child| child.child()), Some(3));
         assert_eq!(
             node_1.branch_children().iter().map(super::ChildRenderPlan::child).collect::<Vec<_>>(),
-            vec![0]
+            vec![2]
         );
         assert_eq!(
             node_1.emitted_stereo_neighbors(),
-            &[StereoNeighbor::Atom(2), StereoNeighbor::Atom(0), StereoNeighbor::Atom(3)]
+            &[StereoNeighbor::Atom(0), StereoNeighbor::Atom(2), StereoNeighbor::Atom(3)]
         );
     }
 

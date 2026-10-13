@@ -18,6 +18,19 @@ fn exact_canonicalize_is_idempotent_for_disconnected_cases() {
 }
 
 #[test]
+fn exact_canonical_labeling_rooted_always_ranks_the_root_first() {
+    let smiles = Smiles::from_str("C1CC1").unwrap();
+    for root in 0..smiles.nodes().len() {
+        let labeling = smiles.exact_canonical_labeling_rooted(root);
+        assert_eq!(
+            labeling.new_index_of_old_node()[root],
+            0,
+            "root {root} must be individualized to canonical rank 0"
+        );
+    }
+}
+
+#[test]
 fn exact_canonicalize_converges_identical_disconnected_components() {
     let left = Smiles::from_str("CC.CC.O").unwrap().exact_canonicalize();
     let right = Smiles::from_str("O.CC.CC").unwrap().exact_canonicalize();
