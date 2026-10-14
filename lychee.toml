@@ -1,0 +1,11 @@
+# Retry transient failures (rate limits, brief outages) before declaring a
+# link dead, since a single 429 from a slow host otherwise fails the whole
+# check.
+max_retries = 3
+retry_wait_time = 5
+
+# huggingface.co rate-limits anonymous requests aggressively; keep this
+# repository to one request at a time with spacing between them.
+[hosts."huggingface.co"]
+concurrency = 1
+request_interval = "2s"
