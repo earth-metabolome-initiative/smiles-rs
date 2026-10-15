@@ -23,4 +23,11 @@ exclude_re = [
     "replace > with >= in normalized_bond_for_emit$",
     # This helper checks invariants in tests and fuzzing.
     "replace assert_core_rewrite_invariants with \\(\\)$",
+    # A missed fixed point or tie only sends orbit_min down its full path, which renders identically.
+    "replace RelabelRound<AtomPolicy>::has_same_state -> bool with false$",
+    "replace == with != in RelabelRound<AtomPolicy>::has_same_state$",
+    "replace same_graph_state -> bool with false$",
+    "replace == with != in same_graph_state$",
+    "delete match arm .* in same_graph_state$",
+    "replace PlanningClasses::has_ties -> bool with true$",
 ]
