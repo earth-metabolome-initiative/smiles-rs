@@ -105,19 +105,20 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         let refined_classes = refined.classes().to_vec();
         let rooted_classes = self.rooted_symmetry_classes_from_refined(&refined_classes);
         let roots = self.component_roots_from_planning(&invariants, &rooted_classes);
+        let canonical_rank = self.canonical_tie_break_rank(&rooted_classes);
         let forest = self.spanning_forest_with_planning(
             &roots,
             &invariants,
             &refined_classes,
             &rooted_classes,
-            None,
+            canonical_rank.as_deref(),
         );
         self.branch_plan_with_planning(
             &forest,
             &invariants,
             &refined_classes,
             &rooted_classes,
-            None,
+            canonical_rank.as_deref(),
         )
     }
 
@@ -128,7 +129,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         invariants: &[AtomInvariant],
         refined_classes: &[usize],
         rooted_classes: &[usize],
-        forced_root: Option<usize>,
+        canonical_rank: Option<&[usize]>,
     ) -> BranchPlan {
         let node_count = self.nodes().len();
         if !forest.children().iter().any(|children| children.len() > 1) {
@@ -174,7 +175,6 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             subtree_signatures[node_id] = signature_id;
         }
 
-        let canonical_rank = self.canonical_tie_break_rank(rooted_classes, forced_root);
         let mut ordered_children = vec![Vec::new(); node_count];
 
         for (node_id, ordered_children_row) in ordered_children.iter_mut().enumerate() {
@@ -191,7 +191,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                         rooted_class: rooted_classes[child],
                         refined_class: refined_classes[child],
                         local: local_keys[child].clone(),
-                        tie_break_rank: canonical_rank.as_ref().map_or(child, |rank| rank[child]),
+                        tie_break_rank: canonical_rank.map_or(child, |rank| rank[child]),
                     },
                     child,
                 ));
@@ -383,12 +383,13 @@ mod tests {
         let refined = smiles.refined_atom_classes_from_invariants(&invariants);
         let rooted = smiles.rooted_symmetry_classes_from_refined(refined.classes());
         let roots = smiles.component_roots_from_planning(&invariants, &rooted);
+        let canonical_rank = smiles.canonical_tie_break_rank(&rooted);
         let forest = smiles.spanning_forest_with_planning(
             &roots,
             &invariants,
             refined.classes(),
             &rooted,
-            None,
+            canonical_rank.as_deref(),
         );
 
         let plan = smiles.branch_plan_with_planning(
@@ -396,7 +397,7 @@ mod tests {
             &invariants,
             refined.classes(),
             &rooted,
-            None,
+            canonical_rank.as_deref(),
         );
         assert_eq!(plan.ordered_children(0), forest.children_of(0));
         assert_eq!(plan.subtree_signature(0), Some(0));

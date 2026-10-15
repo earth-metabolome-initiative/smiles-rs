@@ -3,17 +3,19 @@ use alloc::vec::Vec;
 use geometric_traits::traits::SparseValuedMatrix2DRef;
 
 use super::{
-    Smiles, SmilesAtomPolicy,
+    Smiles, SmilesAtomPolicy, SmilesCanonicalLabeling,
     branches::BranchPlan,
     spanning_tree::SpanningForest,
     stereo::{
         DirectionalBondOverrides, StereoNeighbor, normalized_bond_for_emit,
         normalized_tetrahedral_chirality,
     },
+    symmetry::classes_are_unique,
 };
 use crate::{
     atom::bracketed::chirality::Chirality,
     bond::{Bond, BondDescriptor, bond_edge::BondEdge},
+    smiles::invariants::AtomInvariant,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,12 +256,37 @@ struct RenderOrdering {
     max_assigned_label: u16,
 }
 
+/// WL planning inputs of one graph, computed once so the tie check before a
+/// render does not refine twice.
+pub(crate) struct PlanningClasses {
+    invariants: Vec<AtomInvariant>,
+    refined_classes: Vec<usize>,
+    rooted_classes: Vec<usize>,
+}
+
+impl PlanningClasses {
+    /// Whether WL refinement left two atoms in one rooted class.
+    #[must_use]
+    pub(crate) fn has_ties(&self) -> bool {
+        !classes_are_unique(&self.rooted_classes)
+    }
+}
+
 impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// Test-only convenience for the unrooted plan.
     #[cfg(test)]
     #[must_use]
     pub(crate) fn render_plan(&self) -> RenderPlan {
-        self.render_plan_with_root(None)
+        self.render_plan_with(self.planning_classes(), None, None)
+    }
+
+    #[must_use]
+    pub(crate) fn planning_classes(&self) -> PlanningClasses {
+        let invariants = self.atom_invariants();
+        let refined_classes =
+            self.refined_atom_classes_from_invariants(&invariants).classes().to_vec();
+        let rooted_classes = self.rooted_symmetry_classes_from_refined(&refined_classes);
+        PlanningClasses { invariants, refined_classes, rooted_classes }
     }
 
     /// Replaces the chosen root of `forced`'s connected component with
@@ -301,12 +328,23 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// forest based on parser bond order is also evaluated and used only if it
     /// lowers the maximum label. This is a best-effort reduction step, not a
     /// proof that the final plan will always stay below `100`.
-    pub(crate) fn render_plan_with_root(&self, forced_root: Option<usize>) -> RenderPlan {
+    ///
+    /// `classes` must be this graph's
+    /// [`planning_classes`](Self::planning_classes), and `tie_break_labeling`,
+    /// when given, its
+    /// [`tie_break_labeling(forced_root)`](Self::tie_break_labeling).
+    pub(crate) fn render_plan_with(
+        &self,
+        classes: PlanningClasses,
+        forced_root: Option<usize>,
+        tie_break_labeling: Option<&SmilesCanonicalLabeling>,
+    ) -> RenderPlan {
+        let PlanningClasses { invariants, refined_classes, rooted_classes } = classes;
         let node_count = self.nodes().len();
-        let invariants = self.atom_invariants();
-        let refined = self.refined_atom_classes_from_invariants(&invariants);
-        let refined_classes = refined.classes().to_vec();
-        let rooted_classes = self.rooted_symmetry_classes_from_refined(&refined_classes);
+        let tie_break_labeling =
+            self.tie_break_labeling_if_tied(&rooted_classes, forced_root, tie_break_labeling);
+        let canonical_rank =
+            tie_break_labeling.as_deref().map(SmilesCanonicalLabeling::new_index_of_old_node);
         let mut roots = self.component_roots_from_planning(&invariants, &rooted_classes);
         if let Some(forced) = forced_root {
             self.force_component_root(&mut roots, forced);
@@ -318,13 +356,13 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 &invariants,
                 &refined_classes,
                 &rooted_classes,
-                forced_root,
+                canonical_rank,
             ),
             &invariants,
             &refined_classes,
             &rooted_classes,
             node_count,
-            forced_root,
+            canonical_rank,
         );
         let ordering = if primary.max_assigned_label > 99 {
             let fallback = build_render_ordering(
@@ -334,7 +372,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 &refined_classes,
                 &rooted_classes,
                 node_count,
-                forced_root,
+                canonical_rank,
             );
             if fallback.max_assigned_label < primary.max_assigned_label {
                 fallback
@@ -417,14 +455,14 @@ fn build_render_ordering<AtomPolicy: SmilesAtomPolicy>(
     refined_classes: &[usize],
     rooted_classes: &[usize],
     node_count: usize,
-    forced_root: Option<usize>,
+    canonical_rank: Option<&[usize]>,
 ) -> RenderOrdering {
     let branch_plan = smiles.branch_plan_with_planning(
         &forest,
         invariants,
         refined_classes,
         rooted_classes,
-        forced_root,
+        canonical_rank,
     );
     let (components, preorder_indices, global_preorder) =
         build_component_preorders(&forest, &branch_plan, node_count);

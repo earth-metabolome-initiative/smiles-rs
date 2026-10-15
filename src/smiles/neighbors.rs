@@ -69,7 +69,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             invariants,
             refined_classes,
             rooted_classes,
-            None,
+            self.canonical_tie_break_rank(rooted_classes).as_deref(),
         )
         .into_iter()
         .nth(node_id)
@@ -82,9 +82,8 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         invariants: &[AtomInvariant],
         refined_classes: &[usize],
         rooted_classes: &[usize],
-        forced_root: Option<usize>,
+        canonical_rank: Option<&[usize]>,
     ) -> Vec<Vec<BondEdge>> {
-        let canonical_rank = self.canonical_tie_break_rank(rooted_classes, forced_root);
         let mut ordered_rows = Vec::with_capacity(self.atom_nodes.len());
         for node_id in 0..self.atom_nodes.len() {
             ordered_rows.push(self.ordered_neighbor_edges_row_with_planning(
@@ -92,7 +91,7 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
                 invariants,
                 refined_classes,
                 rooted_classes,
-                canonical_rank.as_deref(),
+                canonical_rank,
             ));
         }
         ordered_rows

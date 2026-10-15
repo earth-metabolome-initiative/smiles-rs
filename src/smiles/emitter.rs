@@ -1,7 +1,7 @@
 use alloc::{string::String, vec::Vec};
-use core::fmt::Write;
+use core::{cell::OnceCell, fmt::Write};
 
-use super::{Smiles, SmilesAtomPolicy, render_plan::RenderPlan};
+use super::{Smiles, SmilesAtomPolicy, SmilesCanonicalLabeling, render_plan::RenderPlan};
 
 /// Renders a [`Smiles`] graph by first building a [`RenderPlan`] and then
 /// emitting text from that plan.
@@ -54,21 +54,26 @@ pub(crate) fn rooted_traversal_order<AtomPolicy: SmilesAtomPolicy>(
 /// primitive, which would wrongly look like an immediate fixed point and
 /// stop the search one hop short of the orbit it was meant to explore), and
 /// only grows further when those two rounds already disagree. The loop only
-/// runs when `has_tied_rooted_classes` finds a real tie, so molecules
-/// without one keep paying for a single render pass.
+/// runs when WL refinement leaves a tie, so molecules without one keep paying
+/// for a single render pass. A second round whose state equals the first is
+/// returned unrendered, since it renders identically.
 fn orbit_min<AtomPolicy: SmilesAtomPolicy>(
     smiles: &Smiles<AtomPolicy>,
     root: Option<usize>,
 ) -> (String, Vec<usize>) {
-    if !smiles.has_tied_rooted_classes() {
-        let plan = smiles.render_plan_with_root(root);
+    let classes = smiles.planning_classes();
+    if !classes.has_ties() {
+        let plan = smiles.render_plan_with(classes, root, None);
         return (emit_with_plan(smiles, &plan), plan.traversal_order());
     }
 
     let identity_order: Vec<usize> = (0..smiles.nodes().len()).collect();
-    let first = relabel_round(smiles, root, &identity_order);
+    let first = relabel_round(smiles, &smiles.tie_break_labeling(root), root, &identity_order);
     let first_string = render_round(&first);
-    let second = relabel_round(&first.graph, first.root, &first.order);
+    let second = first.next();
+    if second.has_same_state(&first) {
+        return (first_string, first.order);
+    }
     let second_string = render_round(&second);
 
     if second_string == first_string {
@@ -80,7 +85,7 @@ fn orbit_min<AtomPolicy: SmilesAtomPolicy>(
 
     loop {
         let previous = rounds.last().unwrap_or_else(|| unreachable!("rounds is non-empty"));
-        let next = relabel_round(&previous.graph, previous.root, &previous.order);
+        let next = previous.next();
         let next_string = render_round(&next);
 
         if let Some(cycle_start) = strings.iter().position(|existing| *existing == next_string) {
@@ -96,38 +101,85 @@ fn orbit_min<AtomPolicy: SmilesAtomPolicy>(
 }
 
 /// One relabeled state in [`orbit_min`]'s search: the relabeled graph, where
-/// `root` (if any) landed in it, and the original atom id behind each of its
-/// local atom ids.
+/// `root` (if any) landed in it, the original atom id behind each of its
+/// local atom ids, and its own [`Smiles::tie_break_labeling`] for `root`,
+/// computed on first use.
 struct RelabelRound<AtomPolicy: SmilesAtomPolicy> {
     graph: Smiles<AtomPolicy>,
     root: Option<usize>,
     order: Vec<usize>,
+    labeling: OnceCell<SmilesCanonicalLabeling>,
 }
 
-/// Relabels `graph` to its exact canonical form, individualizing `root`
-/// (local to `graph`) when given, and composes the result with `order` (the
-/// original atom id behind each of `graph`'s own local atom ids) so the
-/// returned round's `order` stays in terms of the original atom ids
-/// throughout the search.
+impl<AtomPolicy: SmilesAtomPolicy> RelabelRound<AtomPolicy> {
+    fn labeling(&self) -> &SmilesCanonicalLabeling {
+        self.labeling.get_or_init(|| self.graph.tie_break_labeling(self.root))
+    }
+
+    fn next(&self) -> Self {
+        relabel_round(&self.graph, self.labeling(), self.root, &self.order)
+    }
+
+    /// Whether both rounds hold the same graph state and root, which makes
+    /// every deterministic function of a round, its render included, agree.
+    fn has_same_state(&self, other: &Self) -> bool {
+        self.root == other.root && same_graph_state(&self.graph, &other.graph)
+    }
+}
+
+/// Compares every field of two graphs, where `PartialEq` compares only atoms
+/// and bonds.
+fn same_graph_state<AtomPolicy: SmilesAtomPolicy>(
+    left: &Smiles<AtomPolicy>,
+    right: &Smiles<AtomPolicy>,
+) -> bool {
+    let Smiles {
+        atom_nodes,
+        bond_matrix,
+        parsed_stereo_neighbors,
+        implicit_hydrogen_cache,
+        radical_electrons,
+        kekulization_source,
+        atom_policy: _,
+    } = left;
+    *atom_nodes == right.atom_nodes
+        && *bond_matrix == right.bond_matrix
+        && *parsed_stereo_neighbors == right.parsed_stereo_neighbors
+        && *implicit_hydrogen_cache == right.implicit_hydrogen_cache
+        && *radical_electrons == right.radical_electrons
+        && match (kekulization_source, &right.kekulization_source) {
+            (None, None) => true,
+            (Some(left), Some(right)) => same_graph_state(left, right),
+            _ => false,
+        }
+}
+
+/// Relabels `graph` by `labeling`, its exact canonical labeling with `root`
+/// (local to `graph`) individualized when given, and composes the result
+/// with `order` (the original atom id behind each of `graph`'s own local atom
+/// ids) so the returned round's `order` stays in terms of the original atom
+/// ids throughout the search.
 fn relabel_round<AtomPolicy: SmilesAtomPolicy>(
     graph: &Smiles<AtomPolicy>,
+    labeling: &SmilesCanonicalLabeling,
     root: Option<usize>,
     order: &[usize],
 ) -> RelabelRound<AtomPolicy> {
-    let labeling = match root {
-        Some(root) => graph.exact_canonical_labeling_rooted(root),
-        None => graph.exact_canonical_labeling(),
-    };
     RelabelRound {
-        graph: graph.exact_canonicalize_with_labeling(&labeling),
+        graph: graph.exact_canonicalize_with_labeling(labeling),
         root: root.map(|r| labeling.new_index_of_old_node()[r]),
         order: labeling.order().iter().map(|&local| order[local]).collect(),
+        labeling: OnceCell::new(),
     }
 }
 
 /// Renders a [`RelabelRound`]'s graph rooted at where `root` landed in it.
 fn render_round<AtomPolicy: SmilesAtomPolicy>(round: &RelabelRound<AtomPolicy>) -> String {
-    let plan = round.graph.render_plan_with_root(round.root);
+    let plan = round.graph.render_plan_with(
+        round.graph.planning_classes(),
+        round.root,
+        Some(round.labeling()),
+    );
     emit_with_plan(&round.graph, &plan)
 }
 

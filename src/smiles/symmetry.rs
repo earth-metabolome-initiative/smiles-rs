@@ -1,9 +1,9 @@
-use alloc::vec::Vec;
+use alloc::{borrow::Cow, vec::Vec};
 
 use geometric_traits::traits::{SparseMatrix2D, SparseValuedMatrix2DRef};
 use smallvec::SmallVec;
 
-use super::{Smiles, invariants::bond_entry_code};
+use super::{Smiles, SmilesCanonicalLabeling, invariants::bond_entry_code};
 
 type Neighborhood = SmallVec<[(u8, usize); 4]>;
 
@@ -22,40 +22,36 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
         self.rooted_symmetry_classes_from_refined(refined.classes())
     }
 
-    /// Returns a per-atom rank that is consistent under graph renumbering,
-    /// for breaking ties the WL refinement in `rooted_classes` left open.
-    /// `None` when `rooted_classes` already distinguishes every atom, so the
-    /// exact (expensive) canonical labeling only runs for genuinely
-    /// symmetric neighborhoods. `forced_root`, when given, is individualized
-    /// in the exact search so the rank stays consistent under renumbering
-    /// for ties that involve the root (see
-    /// [`Smiles::exact_canonical_labeling_rooted`]).
+    /// Exact canonical labeling whose ranks break WL ties consistently under
+    /// renumbering, with `forced_root` individualized when given.
     #[must_use]
-    pub(crate) fn canonical_tie_break_rank(
-        &self,
-        rooted_classes: &[usize],
-        forced_root: Option<usize>,
-    ) -> Option<Vec<usize>> {
-        if classes_are_unique(rooted_classes) {
-            None
-        } else {
-            let labeling = match forced_root {
-                Some(root) => self.exact_canonical_labeling_rooted(root),
-                None => self.exact_canonical_labeling(),
-            };
-            Some(labeling.new_index_of_old_node().to_vec())
+    pub(crate) fn tie_break_labeling(&self, forced_root: Option<usize>) -> SmilesCanonicalLabeling {
+        match forced_root {
+            Some(root) => self.exact_canonical_labeling_rooted(root),
+            None => self.exact_canonical_labeling(),
         }
     }
 
-    /// Cheap (WL-only) check for whether any atom shares its `rooted_class`
-    /// with another, used to skip the orbit-min relabeling loop when the WL
-    /// partition alone already guarantees a unique neighbor order.
+    /// [`tie_break_labeling`](Self::tie_break_labeling) when `rooted_classes`
+    /// has a tie, borrowing `supplied`, which must equal it, when given.
     #[must_use]
-    pub(crate) fn has_tied_rooted_classes(&self) -> bool {
-        let invariants = self.atom_invariants();
-        let refined = self.refined_atom_classes_from_invariants(&invariants);
-        let rooted = self.rooted_symmetry_classes_from_refined(refined.classes());
-        !classes_are_unique(&rooted)
+    pub(crate) fn tie_break_labeling_if_tied<'a>(
+        &self,
+        rooted_classes: &[usize],
+        forced_root: Option<usize>,
+        supplied: Option<&'a SmilesCanonicalLabeling>,
+    ) -> Option<Cow<'a, SmilesCanonicalLabeling>> {
+        (!classes_are_unique(rooted_classes)).then(|| {
+            supplied.map_or_else(|| Cow::Owned(self.tie_break_labeling(forced_root)), Cow::Borrowed)
+        })
+    }
+
+    /// Unrooted tie-break ranks for planning helpers outside a render plan.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn canonical_tie_break_rank(&self, rooted_classes: &[usize]) -> Option<Vec<usize>> {
+        self.tie_break_labeling_if_tied(rooted_classes, None, None)
+            .map(|labeling| labeling.new_index_of_old_node().to_vec())
     }
 
     #[must_use]
@@ -254,7 +250,7 @@ fn dense_ranks_by_current_and_neighborhood_reuse<N>(
     }
 }
 
-fn classes_are_unique(classes: &[usize]) -> bool {
+pub(crate) fn classes_are_unique(classes: &[usize]) -> bool {
     classes.iter().copied().max().is_none_or(|max_class| max_class + 1 == classes.len())
 }
 
@@ -371,32 +367,5 @@ mod tests {
             &parse("C1N2CN3CN1CN(C2)C3").rooted_symmetry_classes(),
             &[0, 6, 0, 6, 0, 6, 0, 6, 0, 0],
         );
-    }
-
-    #[test]
-    fn has_tied_rooted_classes_is_false_for_an_asymmetric_molecule() {
-        assert!(!parse("CCO").has_tied_rooted_classes());
-    }
-
-    #[test]
-    fn has_tied_rooted_classes_is_true_for_a_symmetric_molecule() {
-        assert!(parse("C1CC1").has_tied_rooted_classes());
-    }
-
-    #[test]
-    fn canonical_tie_break_rank_is_none_without_a_tie() {
-        let smiles = parse("CCO");
-        let rooted = smiles.rooted_symmetry_classes();
-        assert_eq!(smiles.canonical_tie_break_rank(&rooted, None), None);
-    }
-
-    #[test]
-    fn canonical_tie_break_rank_individualizes_the_forced_root() {
-        let smiles = parse("C1CC1");
-        let rooted = smiles.rooted_symmetry_classes();
-        let rank = smiles
-            .canonical_tie_break_rank(&rooted, Some(1))
-            .expect("cyclopropane atoms are WL-tied");
-        assert_eq!(rank[1], 0, "individualized root must rank first");
     }
 }
