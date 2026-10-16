@@ -26,8 +26,9 @@ exclude_re = [
     # A missed fixed point or tie only sends orbit_min down its full path, which renders identically.
     "replace RelabelRound<AtomPolicy>::has_same_state -> bool with false$",
     "replace == with != in RelabelRound<AtomPolicy>::has_same_state$",
-    "replace same_graph_state -> bool with false$",
-    "replace == with != in same_graph_state$",
-    "delete match arm .* in same_graph_state$",
     "replace PlanningClasses::has_ties -> bool with true$",
+    # The input numbering's primary plan is an automorphic image of the canonical render and needs as many labels,
+    # so only its strictly smaller parser-order fallback can replace that render.
+    "replace > with >= in orbit_min$",
+    "replace < with <= in orbit_min$",
 ]

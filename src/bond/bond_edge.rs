@@ -211,7 +211,7 @@ pub const fn bond_edge_other(edge: BondEdge, node_id: usize) -> Option<usize> {
 /// ```
 #[inline]
 #[must_use]
-pub fn bond_edge_ring_num_val(edge: BondEdge) -> Option<u8> {
+pub fn bond_edge_ring_num_val(edge: BondEdge) -> Option<u32> {
     edge.ring_num().map(|num| num.get())
 }
 

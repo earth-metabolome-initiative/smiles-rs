@@ -2,7 +2,7 @@
 
 use geometric_traits::traits::SparseValuedMatrixRef;
 use smiles_rs::{
-    bond::Bond,
+    bond::{Bond, ring_num::RingNum},
     smiles::{Smiles, WildcardSmiles},
 };
 
@@ -134,6 +134,63 @@ fn test_render_round_trip_all_inputs() {
     for &original in SMILES_STR {
         assert_render_round_trip_preserves_invariants(original);
     }
+}
+
+/// Ladder of `rungs` rungs spelled as a snake through the rungs, using two
+/// ring labels.
+fn snake_ladder(rungs: usize) -> String {
+    format!("C1CC2C1{}C1C2CC1", "C1C2C2C1".repeat((rungs - 4) / 2))
+}
+
+/// Ladder of `rungs` rungs spelled as one rail with the other as branches.
+fn comb_ladder(rungs: usize) -> String {
+    let mut ladder = String::from("C(C1)");
+    for rung in 2..rungs {
+        ladder.push_str(if rung.is_multiple_of(2) { "C(C12)" } else { "C(C21)" });
+    }
+    ladder.push_str(if rungs.is_multiple_of(2) { "C(C1)" } else { "C(C2)" });
+    ladder
+}
+
+/// Ladder of `rungs` rungs spelled down one rail and back up the other, so
+/// every rung but the last is a ring closure open at the turn.
+fn u_ladder(rungs: u32) -> String {
+    let atom = |rung| format!("C{}", RingNum::try_new(rung).unwrap());
+    let down: String = (1..rungs).map(atom).collect();
+    let up: String = (1..rungs).rev().map(atom).collect();
+    format!("{down}CC{up}")
+}
+
+/// A 200-rung ladder spelled with two ring labels renders under label 100.
+#[test]
+fn ladder_keeps_ring_labels_below_one_hundred() {
+    let smiles = parse_or_panic(&snake_ladder(200));
+    for rendered in [smiles.render(), smiles.render_rooted(0)] {
+        assert!(!rendered.contains("%("), "ring label above 99 in {rendered}");
+        assert_eq!(
+            parse_or_panic(&rendered).canonicalize().render(),
+            smiles.canonicalize().render()
+        );
+    }
+}
+
+/// A ladder whose canonical render fits in 99 ring labels renders the same
+/// from every spelling.
+#[test]
+fn ladder_within_ninety_nine_labels_renders_independently_of_spelling() {
+    let rendered = parse_or_panic(&snake_ladder(198)).render();
+    for spelling in [comb_ladder(198), u_ladder(198)] {
+        assert_eq!(parse_or_panic(&spelling).render(), rendered);
+    }
+}
+
+/// A ladder spelled so neither the canonical plan nor its own plan fits in 99
+/// ring labels renders text that parses back and renders identically.
+#[test]
+fn ladder_above_ninety_nine_labels_round_trips() {
+    let rendered = parse_or_panic(&u_ladder(200)).render();
+    assert!(rendered.contains("%("), "expected a ring label above 99 in {rendered}");
+    assert_eq!(parse_or_panic(&rendered).render(), rendered);
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Parser state used while turning tokenized SMILES into a graph.
 
-use alloc::vec::Vec;
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::marker::PhantomData;
 
 use elements_rs::{Element, Isotope};
@@ -13,6 +13,11 @@ use crate::{
     smiles::{BondMatrixBuilder, Smiles, SmilesAtomPolicy, StereoNeighbor, WildcardAtoms},
     token::{Token, TokenKind, TokenWithSpan},
 };
+
+/// Index of `ring_num` in the fixed open-ring array, out of range above 99.
+fn ring_slot(ring_num: RingNum) -> usize {
+    usize::try_from(ring_num.get()).unwrap_or(usize::MAX)
+}
 
 #[inline]
 fn next_token(tokens: &mut TokenIter<'_>) -> Result<Option<TokenWithSpan>, SmilesErrorWithSpan> {
@@ -96,6 +101,8 @@ struct ParserState<AtomPolicy = crate::smiles::ConcreteAtoms> {
     branch_stack: Vec<usize>,
     /// Open ring closures indexed by ring label.
     ring_open: [Option<(usize, Option<BondDescriptor>)>; 100],
+    /// Open ring closures with labels above 99, only written as `%(N)`.
+    wide_ring_open: BTreeMap<u32, (usize, Option<BondDescriptor>)>,
     /// Parsed lexical stereo neighbor order per atom, preserving ring-digit
     /// position.
     parsed_stereo_neighbors: Vec<Vec<PendingStereoNeighbor>>,
@@ -122,6 +129,7 @@ impl<AtomPolicy: SmilesAtomPolicy> ParserState<AtomPolicy> {
             pending_bond: None,
             branch_stack: Vec::with_capacity(input_len.min(16)),
             ring_open: [None; 100],
+            wide_ring_open: BTreeMap::new(),
             parsed_stereo_neighbors: Vec::with_capacity(input_len),
             last_span: (0, 0),
             atom_policy: PhantomData,
@@ -164,16 +172,24 @@ impl<AtomPolicy: SmilesAtomPolicy> ParserState<AtomPolicy> {
     }
     /// Removes and returns the specified ring open field entry if present.
     fn remove_ring_open(&mut self, ring_num: RingNum) -> Option<(usize, Option<BondDescriptor>)> {
-        self.ring_open[usize::from(ring_num.get())].take()
+        match self.ring_open.get_mut(ring_slot(ring_num)) {
+            Some(slot) => slot.take(),
+            None => self.wide_ring_open.remove(&ring_num.get()),
+        }
     }
     /// Checks if the ring open field is currently empty.
     #[must_use]
     fn ring_open_empty(&self) -> bool {
-        self.ring_open.iter().all(Option::is_none)
+        self.ring_open.iter().all(Option::is_none) && self.wide_ring_open.is_empty()
     }
     /// Inserts the given ring into the ring open field
     fn insert_ring(&mut self, ring_num: RingNum, pending: (usize, Option<BondDescriptor>)) {
-        self.ring_open[usize::from(ring_num.get())] = Some(pending);
+        match self.ring_open.get_mut(ring_slot(ring_num)) {
+            Some(slot) => *slot = Some(pending),
+            None => {
+                self.wide_ring_open.insert(ring_num.get(), pending);
+            }
+        }
     }
     #[must_use]
     fn nodes(&self) -> &[Atom] {

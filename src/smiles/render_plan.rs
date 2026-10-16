@@ -22,6 +22,7 @@ use crate::{
 pub(crate) struct RenderPlan {
     components: Vec<ComponentRenderPlan>,
     nodes: Vec<NodeRenderPlan>,
+    max_ring_label: u16,
 }
 
 impl RenderPlan {
@@ -43,6 +44,12 @@ impl RenderPlan {
     #[must_use]
     pub(crate) fn traversal_order(&self) -> Vec<usize> {
         self.components.iter().flat_map(|component| component.preorder.iter().copied()).collect()
+    }
+
+    /// Largest ring-closure label the emitted text will use.
+    #[must_use]
+    pub(crate) fn max_ring_label(&self) -> u16 {
+        self.max_ring_label
     }
 
     /// Estimates the final rendered length from the completed plan.
@@ -439,7 +446,11 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
             });
         }
 
-        RenderPlan { components: ordering.components, nodes }
+        RenderPlan {
+            components: ordering.components,
+            nodes,
+            max_ring_label: ordering.max_assigned_label,
+        }
     }
 }
 

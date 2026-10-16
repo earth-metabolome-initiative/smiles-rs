@@ -1,18 +1,21 @@
 //! Module for mapping and validating a ring marker
-use core::fmt;
+use core::{fmt, num::NonZeroU32};
 
 use crate::errors::SmilesError;
 
 #[derive(Copy, Debug, PartialEq, PartialOrd, Clone, Eq, Ord, Hash)]
-/// Represents a ring marker and implements tighter bounds for the minimal and
-/// maximal value a ring marker can be
-pub struct RingNum(u8);
+/// Represents a ring marker from `0` to [`RingNum::MAX`]
+// stored offset by one so `Option<RingNum>` stays four bytes
+pub struct RingNum(NonZeroU32);
 impl RingNum {
-    /// Attempts to generate a [`RingNum`] form a [`u8`],
+    /// Largest ring marker, the five-digit limit of the `%(N)` spelling.
+    pub const MAX: u32 = 99_999;
+
+    /// Attempts to generate a [`RingNum`] from a [`u32`],
     ///
     /// # Errors
     /// - Returns a [`SmilesError::RingNumberOverflow`] if the value is above
-    ///   `99`
+    ///   [`RingNum::MAX`]
     ///
     /// # Examples
     ///
@@ -23,8 +26,11 @@ impl RingNum {
     /// assert_eq!(ring.get(), 12);
     /// # Ok::<(), smiles_rs::SmilesError>(())
     /// ```
-    pub fn try_new(num: u8) -> Result<Self, SmilesError> {
-        (num <= 99).then_some(Self(num)).ok_or(SmilesError::RingNumberOverflow(num))
+    pub fn try_new(num: u32) -> Result<Self, SmilesError> {
+        if num > Self::MAX {
+            return Err(SmilesError::RingNumberOverflow(num));
+        }
+        Ok(Self(NonZeroU32::MIN.saturating_add(num)))
     }
 
     /// Returns the value for the [`RingNum`]
@@ -38,14 +44,18 @@ impl RingNum {
     /// # Ok::<(), smiles_rs::SmilesError>(())
     /// ```
     #[must_use]
-    pub fn get(&self) -> u8 {
-        self.0
+    pub const fn get(&self) -> u32 {
+        self.0.get() - 1
     }
 }
 
 impl fmt::Display for RingNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.get() > 9 { write!(f, "%{}", self.get()) } else { write!(f, "{}", self.get()) }
+        match self.get() {
+            num @ 0..=9 => write!(f, "{num}"),
+            num @ 10..=99 => write!(f, "%{num}"),
+            num => write!(f, "%({num})"),
+        }
     }
 }
 
@@ -60,10 +70,13 @@ mod tests {
         assert_eq!(RingNum::try_new(9)?.get(), 9);
         assert_eq!(RingNum::try_new(10)?.get(), 10);
         assert_eq!(RingNum::try_new(99)?.get(), 99);
+        assert_eq!(RingNum::try_new(100)?.get(), 100);
+        assert_eq!(RingNum::try_new(RingNum::MAX)?.get(), RingNum::MAX);
 
-        assert_eq!(RingNum::try_new(100), Err(SmilesError::RingNumberOverflow(100)));
-
-        assert_eq!(RingNum::try_new(200), Err(SmilesError::RingNumberOverflow(200)));
+        assert_eq!(
+            RingNum::try_new(RingNum::MAX + 1),
+            Err(SmilesError::RingNumberOverflow(RingNum::MAX + 1))
+        );
 
         Ok(())
     }
@@ -77,6 +90,8 @@ mod tests {
             (RingNum::try_new(10)?, "%10"),
             (RingNum::try_new(42)?, "%42"),
             (RingNum::try_new(99)?, "%99"),
+            (RingNum::try_new(100)?, "%(100)"),
+            (RingNum::try_new(RingNum::MAX)?, "%(99999)"),
         ];
 
         for (ring, expected) in cases {

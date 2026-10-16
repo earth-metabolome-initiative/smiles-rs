@@ -56,7 +56,8 @@ pub(crate) fn rooted_traversal_order<AtomPolicy: SmilesAtomPolicy>(
 /// only grows further when those two rounds already disagree. The loop only
 /// runs when WL refinement leaves a tie, so molecules without one keep paying
 /// for a single render pass. A second round whose state equals the first is
-/// returned unrendered, since it renders identically.
+/// returned unrendered, since it renders identically. A render needing ring
+/// labels above 99 yields to the input numbering's plan when that needs fewer.
 fn orbit_min<AtomPolicy: SmilesAtomPolicy>(
     smiles: &Smiles<AtomPolicy>,
     root: Option<usize>,
@@ -67,35 +68,54 @@ fn orbit_min<AtomPolicy: SmilesAtomPolicy>(
         return (emit_with_plan(smiles, &plan), plan.traversal_order());
     }
 
+    let (text, order, max_ring_label) = orbit_search(smiles, root);
+    if max_ring_label > 99 {
+        // relabeling drops the input bond order that the fallback for labels
+        // above 99 follows
+        let plan = smiles.render_plan_with(classes, root, None);
+        if plan.max_ring_label() < max_ring_label {
+            return (emit_with_plan(smiles, &plan), plan.traversal_order());
+        }
+    }
+    (text, order)
+}
+
+/// The relabeling search behind [`orbit_min`], also returning the chosen
+/// render's largest ring label.
+fn orbit_search<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+    root: Option<usize>,
+) -> (String, Vec<usize>, u16) {
     let identity_order: Vec<usize> = (0..smiles.nodes().len()).collect();
     let first = relabel_round(smiles, &smiles.tie_break_labeling(root), root, &identity_order);
-    let first_string = render_round(&first);
+    let (first_string, first_label) = render_round(&first);
     let second = first.next();
     if second.has_same_state(&first) {
-        return (first_string, first.order);
+        return (first_string, first.order, first_label);
     }
-    let second_string = render_round(&second);
+    let second_render = render_round(&second);
 
-    if second_string == first_string {
-        return (first_string, first.order);
+    if second_render.0 == first_string {
+        return (first_string, first.order, first_label);
     }
 
-    let mut strings = alloc::vec![first_string, second_string];
+    let mut renders = alloc::vec![(first_string, first_label), second_render];
     let mut rounds = alloc::vec![first, second];
 
     loop {
         let previous = rounds.last().unwrap_or_else(|| unreachable!("rounds is non-empty"));
         let next = previous.next();
-        let next_string = render_round(&next);
+        let next_render = render_round(&next);
 
-        if let Some(cycle_start) = strings.iter().position(|existing| *existing == next_string) {
-            let best = (cycle_start..strings.len())
-                .min_by(|&left, &right| strings[left].cmp(&strings[right]))
+        if let Some(cycle_start) = renders.iter().position(|(text, _)| *text == next_render.0) {
+            let best = (cycle_start..renders.len())
+                .min_by(|&left, &right| renders[left].0.cmp(&renders[right].0))
                 .unwrap_or_else(|| unreachable!("cycle slice is non-empty"));
-            return (strings.swap_remove(best), rounds.swap_remove(best).order);
+            let (text, max_ring_label) = renders.swap_remove(best);
+            return (text, rounds.swap_remove(best).order, max_ring_label);
         }
 
-        strings.push(next_string);
+        renders.push(next_render);
         rounds.push(next);
     }
 }
@@ -173,14 +193,15 @@ fn relabel_round<AtomPolicy: SmilesAtomPolicy>(
     }
 }
 
-/// Renders a [`RelabelRound`]'s graph rooted at where `root` landed in it.
-fn render_round<AtomPolicy: SmilesAtomPolicy>(round: &RelabelRound<AtomPolicy>) -> String {
+/// Renders a [`RelabelRound`]'s graph rooted at where `root` landed in it,
+/// with the render's largest ring label.
+fn render_round<AtomPolicy: SmilesAtomPolicy>(round: &RelabelRound<AtomPolicy>) -> (String, u16) {
     let plan = round.graph.render_plan_with(
         round.graph.planning_classes(),
         round.root,
         Some(round.labeling()),
     );
-    emit_with_plan(&round.graph, &plan)
+    (emit_with_plan(&round.graph, &plan), plan.max_ring_label())
 }
 
 /// Emits a SMILES string from a completed render plan.
@@ -299,7 +320,7 @@ fn rendered_bond_text(
 mod tests {
     use alloc::string::String;
 
-    use super::emit;
+    use super::{emit, same_graph_state};
     use crate::{parser::smiles_parser::parse_wildcard_smiles, smiles::Smiles};
 
     fn render(smiles: &str) -> String {
@@ -440,5 +461,16 @@ mod tests {
             let second = reparsed.render_rooted(0);
             assert_eq!(first, second, "render_rooted at {root} is not stable across a reparse");
         }
+    }
+
+    /// Graphs that differ only in their kekulization source are not one state.
+    #[test]
+    fn same_graph_state_compares_kekulization_sources() {
+        let kekule: Smiles = "C1=CC=CC=C1".parse().unwrap();
+        let aromatic =
+            kekule.try_with_aromaticity_assignment(&kekule.aromaticity_assignment()).unwrap();
+
+        assert!(same_graph_state(&aromatic, &aromatic));
+        assert!(!same_graph_state(&aromatic, &aromatic.clone_without_kekulization_source()));
     }
 }

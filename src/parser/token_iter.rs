@@ -99,18 +99,9 @@ impl TokenIter<'_> {
                     if self.in_bracket {
                         return Err(SmilesError::UnexpectedPercent);
                     }
-
-                    if let Some(num) = try_fold_number::<u8, 2>(self) {
-                        let ring_num = RingNum::try_new(num?)?;
-                        if ring_num.get() < 10 {
-                            return Err(SmilesError::InvalidRingNumber);
-                        }
-                        Token::RingClosure(ring_num)
-                    } else {
-                        return Err(SmilesError::InvalidRingNumber);
-                    }
+                    Token::RingClosure(percent_ring_num(self)?)
                 } else {
-                    Token::RingClosure(RingNum::try_new(n - b'0')?)
+                    Token::RingClosure(RingNum::try_new(u32::from(n - b'0'))?)
                 }
             }
             b'-' | b'=' | b'#' | b'$' | b':' | b'/' | b'\\' => {
@@ -416,14 +407,32 @@ fn try_chirality(stream: &mut TokenIter<'_>) -> Result<Option<Chirality>, Smiles
     Ok(Some(chirality))
 }
 
+/// Reads the ring number after `%`: two digits, or one to five digits in
+/// parentheses as RDKit spells numbers above 99.
+fn percent_ring_num(stream: &mut TokenIter<'_>) -> Result<RingNum, SmilesError> {
+    if stream.peek_byte() == Some(b'(') {
+        stream.position += 1;
+        let num = try_fold_number::<u32, 5>(stream).ok_or(SmilesError::InvalidRingNumber)??;
+        if stream.next_byte() != Some(b')') {
+            return Err(SmilesError::InvalidRingNumber);
+        }
+        return RingNum::try_new(num);
+    }
+    let num = try_fold_number::<u32, 2>(stream).ok_or(SmilesError::InvalidRingNumber)??;
+    if num < 10 {
+        return Err(SmilesError::InvalidRingNumber);
+    }
+    RingNum::try_new(num)
+}
+
 #[inline]
 fn try_fold_number<B, const MAX_DIGITS: usize>(
     stream: &mut TokenIter<'_>,
 ) -> Option<Result<B, SmilesError>>
 where
-    B: TryFrom<u16>,
+    B: TryFrom<u32>,
 {
-    let mut amount: u16 = 0;
+    let mut amount: u32 = 0;
     let mut digits_found = 0;
 
     let bytes = stream.bytes;
@@ -437,7 +446,7 @@ where
         }
         digits_found += 1;
         position += 1;
-        let digit = u16::from(byte - b'0');
+        let digit = u32::from(byte - b'0');
         match amount.checked_mul(10).and_then(|x| x.checked_add(digit)) {
             Some(val) => amount = val,
             None => return Some(Err(SmilesError::IntegerOverflow)),

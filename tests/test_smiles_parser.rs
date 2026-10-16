@@ -136,3 +136,17 @@ fn test_high_degree_quadruple_bond_carbon_does_not_panic() {
     assert_eq!(smiles.edge_count_for_node(0), 64);
     assert_eq!(smiles.total_valence(0), u8::MAX);
 }
+
+/// `%(N)` ring closures of one to five digits parse like the short spelling.
+#[test]
+fn test_parenthesized_ring_closures() {
+    let cyclopropane = Smiles::from_str("C1CC1").unwrap().canonicalize().render();
+    for spelling in ["C%(1)CC1", "C%(100)CC%(100)", "C%(99999)CC%(99999)"] {
+        let smiles = Smiles::from_str(spelling)
+            .unwrap_or_else(|e| panic!("Failed to parse:\n{}", e.render(spelling)));
+        assert_eq!(smiles.canonicalize().render(), cyclopropane, "{spelling}");
+    }
+    for invalid in ["C%(", "C%()CC%()", "C%(100CC%(100)", "C%(100000)CC%(100000)", "C%(1a)CC1"] {
+        assert!(Smiles::from_str(invalid).is_err(), "{invalid} must not parse");
+    }
+}

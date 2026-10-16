@@ -99,9 +99,9 @@ pub enum SmilesError {
     /// Non Bond in Bracket
     #[error("Non-bond '.' in bracket")]
     NonBondInBracket,
-    /// Ring Number Overflow (greater than 99)
+    /// Ring number above [`RingNum::MAX`](crate::bond::ring_num::RingNum::MAX)
     #[error("Ring number overflow: {0}")]
-    RingNumberOverflow(u8),
+    RingNumberOverflow(u32),
     /// An edge connects a node to itself
     #[error("Node: {0} has an edge that goes from itself and to itself")]
     SelfLoopEdge(usize),
