@@ -707,6 +707,10 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     /// allene-like semantic chirality is exposed here; other parsed stereo
     /// families return `None`.
     ///
+    /// The label refers to a molecule-specific canonical neighbor order.
+    ///
+    /// Use [`Self::tetrahedral_neighbors_anticlockwise`] for mapped neighbors.
+    ///
     /// # Panics
     /// Panics if `atom_id` is not a valid atom index in this graph.
     ///
@@ -732,6 +736,67 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             self.atom_nodes.len()
         );
         self.semantic_tetrahedral_chirality(atom_id)
+    }
+
+    /// Reads tetrahedral orientation relative to caller-named neighbors.
+    ///
+    /// From `neighbors[0]`, `Some(true)` means anticlockwise neighbor order.
+    ///
+    /// This is SMILES `@` or `@TH1`, while `Some(false)` means `@@` or `@TH2`.
+    ///
+    /// `None` in `neighbors` names a bracket hydrogen without an atom index.
+    ///
+    /// Returns `None` for an invalid center or absent/non-tetrahedral markup.
+    ///
+    /// Returns `None` unless all four parsed neighbors appear exactly once.
+    ///
+    /// This reports the parsed orientation without establishing stereogenicity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use smiles_rs::Smiles;
+    ///
+    /// let neighbors = [Some(0), None, Some(2), Some(3)];
+    /// for input in ["C[C@@H](O)CC", "C[C@@H](O)OC"] {
+    ///     let smiles: Smiles = input.parse()?;
+    ///     assert_eq!(smiles.tetrahedral_neighbors_anticlockwise(1, neighbors), Some(false));
+    ///     let mut swapped = neighbors;
+    ///     swapped.swap(2, 3);
+    ///     assert_eq!(smiles.tetrahedral_neighbors_anticlockwise(1, swapped), Some(true));
+    /// }
+    /// # Ok::<(), smiles_rs::SmilesErrorWithSpan>(())
+    /// ```
+    #[must_use]
+    pub fn tetrahedral_neighbors_anticlockwise(
+        &self,
+        atom_id: usize,
+        neighbors: [Option<usize>; 4],
+    ) -> Option<bool> {
+        let mut anticlockwise = match self.atom_nodes.get(atom_id)?.chirality()? {
+            Chirality::At | Chirality::TH(1) => true,
+            Chirality::AtAt | Chirality::TH(2) => false,
+            _ => return None,
+        };
+        let parsed = self.parsed_stereo_neighbors_row(atom_id);
+        if parsed.len() != 4 {
+            return None;
+        }
+        let mut order = [0; 4];
+        let mut seen = 0_u8;
+        for (slot, neighbor) in neighbors.into_iter().enumerate() {
+            let neighbor = neighbor.map_or(StereoNeighbor::ExplicitHydrogen, StereoNeighbor::Atom);
+            let index = parsed.iter().position(|&parsed| parsed == neighbor)?;
+            if seen & (1 << index) != 0 {
+                return None;
+            }
+            seen |= 1 << index;
+            for &previous in &order[..slot] {
+                anticlockwise ^= previous > index;
+            }
+            order[slot] = index;
+        }
+        Some(anticlockwise)
     }
 
     /// Returns semantic `E`/`Z` stereo for the requested double bond, if any.
@@ -1701,6 +1766,17 @@ impl WildcardSmiles {
     #[must_use]
     pub fn smarts_tetrahedral_chirality(&self, atom_id: usize) -> Option<Chirality> {
         self.inner.smarts_tetrahedral_chirality(atom_id)
+    }
+
+    /// See [`Smiles::tetrahedral_neighbors_anticlockwise`].
+    #[inline]
+    #[must_use]
+    pub fn tetrahedral_neighbors_anticlockwise(
+        &self,
+        atom_id: usize,
+        neighbors: [Option<usize>; 4],
+    ) -> Option<bool> {
+        self.inner.tetrahedral_neighbors_anticlockwise(atom_id, neighbors)
     }
 
     /// Returns semantic `E`/`Z` stereo for the requested double bond, if any.
