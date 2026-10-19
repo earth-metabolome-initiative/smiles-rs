@@ -359,6 +359,7 @@ fn ensure_extracted_zip(
     Ok((was_downloaded, was_extracted))
 }
 
+/// Copies a matching regular entry to the requested output path.
 pub(crate) fn unzip_file(
     compressed_path: &Path,
     extracted_path: &Path,
@@ -383,7 +384,16 @@ pub(crate) fn unzip_file(
                 source: io::Error::new(io::ErrorKind::InvalidData, source),
             }
         })?;
-        if entry.is_file() && Path::new(entry.name()).file_name() == Some(expected_name) {
+        if !entry.is_file() {
+            continue;
+        }
+        let name = entry.name().map_err(|source| {
+            DatasetError::Io {
+                path: compressed_path.to_path_buf(),
+                source: io::Error::new(io::ErrorKind::InvalidData, source),
+            }
+        })?;
+        if Path::new(name.as_ref()).file_name() == Some(expected_name) {
             entry_index = Some(index);
             break;
         }
