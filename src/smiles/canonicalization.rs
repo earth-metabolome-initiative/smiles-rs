@@ -19,7 +19,8 @@ mod components;
 mod state;
 mod stereo_normalization;
 #[cfg(any(test, feature = "fuzzing"))]
-mod support;
+pub(crate) mod support;
+mod symmetric_stereo;
 #[cfg(test)]
 mod tests;
 use self::state::{

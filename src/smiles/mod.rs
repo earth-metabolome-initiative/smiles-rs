@@ -1185,6 +1185,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
 
     /// Renders the graph back into a SMILES string.
     ///
+    /// Symmetry ties use the smallest stereo image of a canonical skeleton.
+    ///
     /// This is the main entry point for display. Rendering is split into a
     /// deterministic planning phase followed by a write-only emission phase:
     ///

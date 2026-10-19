@@ -277,6 +277,16 @@ impl PlanningClasses {
     pub(crate) fn has_ties(&self) -> bool {
         !classes_are_unique(&self.rooted_classes)
     }
+
+    #[must_use]
+    pub(crate) fn refined_classes(&self) -> &[usize] {
+        &self.refined_classes
+    }
+
+    #[must_use]
+    pub(crate) fn rooted_classes(&self) -> &[usize] {
+        &self.rooted_classes
+    }
 }
 
 impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
@@ -747,8 +757,24 @@ pub(super) fn preserve_raw_directional_single<AtomPolicy: SmilesAtomPolicy>(
     from: usize,
     to: usize,
 ) -> bool {
+    preserve_raw_directional_single_around(
+        smiles,
+        |node_id| directional_overrides.has_semantic_endpoint(node_id),
+        from,
+        to,
+    )
+}
+
+/// [`preserve_raw_directional_single`] given which atoms end a semantic
+/// double-bond stereo record.
+pub(super) fn preserve_raw_directional_single_around<AtomPolicy: SmilesAtomPolicy>(
+    smiles: &Smiles<AtomPolicy>,
+    is_semantic_endpoint: impl Fn(usize) -> bool,
+    from: usize,
+    to: usize,
+) -> bool {
     [from, to].into_iter().any(|node_id| {
-        !directional_overrides.has_semantic_endpoint(node_id)
+        !is_semantic_endpoint(node_id)
             && smiles.edges_for_node(node_id).any(|edge| {
                 edge.bond() == Bond::Double
                     && !edge.is_aromatic()

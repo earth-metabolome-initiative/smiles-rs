@@ -23,12 +23,22 @@ exclude_re = [
     "replace > with >= in normalized_bond_for_emit$",
     # This helper checks invariants in tests and fuzzing.
     "replace assert_core_rewrite_invariants with \\(\\)$",
-    # A missed fixed point or tie only sends orbit_min down its full path, which renders identically.
-    "replace RelabelRound<AtomPolicy>::has_same_state -> bool with false$",
-    "replace == with != in RelabelRound<AtomPolicy>::has_same_state$",
+    # Without a WL tie the planner's classes fix the whole plan, so the symmetric path renders the same text.
     "replace PlanningClasses::has_ties -> bool with true$",
     # The input numbering's primary plan is an automorphic image of the canonical render and needs as many labels,
     # so only its strictly smaller parser-order fallback can replace that render.
-    "replace > with >= in orbit_min$",
-    "replace < with <= in orbit_min$",
+    "replace > with >= in symmetric_render$",
+    "replace < with <= in symmetric_render$",
+    # Swapping the root's flag with every other atom's still individualizes the root alone.
+    "replace != with == in Smiles<AtomPolicy>::symmetric_stereo_labeling$",
+    # Without generators or stereo points the smallest image is the identity, so the early return only saves work.
+    "replace \\|\\| with && in Smiles<AtomPolicy>::symmetric_stereo_labeling$",
+    # The bond matrix has no diagonal, and an automorphism maps distinct atoms to distinct atoms.
+    "replace < with <= in Smiles<AtomPolicy>::numbering_relative_stereo$",
+    "replace > with >= in Smiles<AtomPolicy>::stereo_smallest_image_automorphism$",
+    # Reading every raw direction bit the other way round relabels the points consistently, and any consistent
+    # encoding gives a renumbering-invariant render.
+    "replace == with != in Smiles<AtomPolicy>::stereo_smallest_image_automorphism$",
+    # The sequences hold distinct neighbors.
+    "replace > with >= in odd_inversions$",
 ]
