@@ -41,4 +41,8 @@ exclude_re = [
     "replace == with != in Smiles<AtomPolicy>::stereo_smallest_image_automorphism$",
     # The sequences hold distinct neighbors.
     "replace > with >= in odd_inversions$",
+    # Distinct neighbor indices cannot compare equal.
+    "replace > with >= in Smiles<AtomPolicy>::tetrahedral_neighbors_anticlockwise$",
+    # Reversing six comparisons preserves parity for four distinct neighbors.
+    "replace > with < in Smiles<AtomPolicy>::tetrahedral_neighbors_anticlockwise$",
 ]
