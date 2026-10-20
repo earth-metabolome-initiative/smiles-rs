@@ -42,14 +42,42 @@ fn canonicalize_preserves_relative_decalin_configurations() {
 fn canonicalize_clears_independent_redundant_tetrahedral_tags() {
     for group in [
         &["CC(C)O", "C[C@H](C)O", "C[C@@H](C)O"][..],
+        &["CCC", "C[C@H2]C", "C[C@@H2]C"][..],
         &["CC1CCCCC1", "C[C@H]1CCCCC1", "C[C@@H]1CCCCC1"][..],
         &["C1CCC2CCCCC2C1", "C1CCC[C@H]2C1CCCC2", "C1CCCC2[C@H]1CCCC2"][..],
         &["C[C@H](O)CC(C)C", "C[C@H](O)C[C@H](C)C", "C[C@H](O)C[C@@H](C)C"][..],
     ] {
         assert_same_canonical_group(group);
     }
-    let redundant: Smiles = "C[C@H](C)O".parse().unwrap();
-    assert_eq!(redundant.smarts_tetrahedral_chirality(1), None);
+    for source in ["C[C@H](C)O", "C[C@H2]C"] {
+        let redundant: Smiles = source.parse().unwrap();
+        assert_eq!(redundant.smarts_tetrahedral_chirality(1), None);
+    }
+}
+
+#[test]
+fn canonicalize_clears_incomplete_tetrahedral_markup() {
+    assert_same_canonical_group(&["C[C]C", "C[C@]C", "C[C@@]C"]);
+    let incomplete: Smiles = "C[C@]C".parse().unwrap();
+    assert_eq!(incomplete.smarts_tetrahedral_chirality(1), None);
+}
+
+#[test]
+fn canonicalize_preserves_tetrahedral_stereo_in_an_asymmetric_cage() {
+    let left = "[C@H]12[C@H]3[C@H]4[C@H]5[C@H]6[C@H]7[C@H]1[C@H]7[C@H]([C@H]23)[C@H]4[C@H]56";
+    let right = "[C@@H]12[C@H]3[C@H]4[C@H]5[C@H]6[C@H]7[C@H]1[C@H]7[C@H]([C@H]23)[C@H]4[C@H]56";
+    let unmarked = canonical_string("C12C3C4C5C6C7C1C7C(C23)C4C56");
+    let left_canonical = canonical_string(left);
+    let right_canonical = canonical_string(right);
+    assert_ne!(left_canonical, right_canonical);
+    assert_ne!(left_canonical, unmarked);
+    assert_ne!(right_canonical, unmarked);
+    assert_eq!(canonical_string(&left_canonical), left_canonical);
+    assert_eq!(canonical_string(&right_canonical), right_canonical);
+    for source in [left, right] {
+        let parsed: Smiles = source.parse().unwrap();
+        assert!(matches!(parsed.smarts_tetrahedral_chirality(0), Some(Chirality::TH(1 | 2))));
+    }
 }
 
 #[test]

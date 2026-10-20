@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 
 use geometric_traits::{
-    impls::PermutationGroup,
+    impls::{PermutationGroup, SmallestImage},
     traits::{CanonicalLabeling, CanonicalLabelingOptions, SparseMatrix2D, SparseValuedMatrixRef},
 };
 
@@ -172,9 +172,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
         rooted_classes: &[usize],
         refined_classes: &[usize],
     ) -> bool {
-        if !self.renders_parity_relative(node) {
-            return false;
-        }
+        debug_assert!(self.renders_parity_relative(node));
         let (_, generators, stereo) =
             self.stereo_skeleton(Some(node), rooted_classes, refined_classes, |chirality| {
                 if matches!(chirality, Some(Chirality::AL(_))) { 3 } else { 1 }
@@ -185,17 +183,10 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
         let group =
             self.stereo_permutation_group(generators.into_iter(), &stereo.raw_directional_edges);
         let mut points = self.stereo_points(&stereo.parity_centers, &stereo.raw_directional_edges);
-        let original = group
-            .smallest_image(&points)
-            .unwrap_or_else(|_| unreachable!("stereo points are distinct and in range"));
-        let point = points
-            .iter_mut()
-            .find(|point| **point / 2 == node)
-            .unwrap_or_else(|| unreachable!("the queried atom is a parity center"));
-        *point ^= 1;
-        let inverted = group
-            .smallest_image(&points)
-            .unwrap_or_else(|_| unreachable!("inverting parity preserves distinct stereo points"));
+        let original = smallest_stereo_image(&group, &points);
+        let point_index = stereo.parity_centers[..node].iter().filter(|&&center| center).count();
+        points[point_index] ^= 1;
+        let inverted = smallest_stereo_image(&group, &points);
         original.image != inverted.image
     }
 
@@ -208,9 +199,7 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     ) -> Vec<usize> {
         let group = self.stereo_permutation_group(generators, raw_directional_edges);
         let points = self.stereo_points(parity_centers, raw_directional_edges);
-        let smallest = group
-            .smallest_image(&points)
-            .unwrap_or_else(|_| unreachable!("stereo points are distinct and in range"));
+        let smallest = smallest_stereo_image(&group, &points);
         (0..self.nodes().len()).map(|node| smallest.element[2 * node] / 2).collect()
     }
 
@@ -274,6 +263,12 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
             self.bond_matrix().sparse_row(node).map(|neighbor| automorphism[neighbor]).collect();
         odd_inversions(&images)
     }
+}
+
+fn smallest_stereo_image(group: &PermutationGroup, points: &[usize]) -> SmallestImage {
+    group
+        .smallest_image(points)
+        .unwrap_or_else(|_| unreachable!("stereo points are distinct and in range"))
 }
 
 /// `Some(false)` for `@`, `@TH1` and `@AL1`, `Some(true)` for their inverses,
