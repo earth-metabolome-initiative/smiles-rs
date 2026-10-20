@@ -331,6 +331,8 @@ impl<AtomPolicy: crate::smiles::SmilesAtomPolicy> Smiles<AtomPolicy> {
 
     /// Returns the canonical graph without orphan bond-direction markers.
     ///
+    /// Relative configurations of coupled tetrahedral centers are preserved.
+    ///
     /// # Examples
     ///
     /// ```

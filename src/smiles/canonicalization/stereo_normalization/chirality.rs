@@ -293,6 +293,7 @@ pub(crate) fn tetrahedral_like_is_stereogenic(
             .collect::<Vec<_>>();
     keys.sort_unstable();
     keys.windows(2).all(|window| window[0] != window[1])
+        || smiles.tetrahedral_stereo_changes_image(node_id, rooted_classes, refined_classes)
 }
 
 fn stereo_neighbor_sequence_key(

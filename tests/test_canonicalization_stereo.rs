@@ -3,6 +3,54 @@
 mod canonicalization_common;
 
 use canonicalization_common::{assert_same_canonical_group, canonical_string};
+use smiles_rs::{Smiles, atom::bracketed::chirality::Chirality};
+
+#[test]
+fn canonicalize_preserves_relative_decalin_configurations() {
+    let groups = [
+        [
+            "C1CCC[C@H]2[C@H]1CCCC2",
+            "C1CCC[C@@H]2[C@@H]1CCCC2",
+            "C2CCC[C@H]1[C@H]2CCCC1",
+            "C1CC[C@H]2CCCC[C@@H]2C1",
+        ],
+        [
+            "C1CCC[C@H]2[C@@H]1CCCC2",
+            "C1CCC[C@@H]2[C@H]1CCCC2",
+            "C2CCC[C@H]1[C@@H]2CCCC1",
+            "C1CC[C@H]2CCCC[C@H]2C1",
+        ],
+    ];
+    let unmarked = canonical_string("C1CCC2CCCCC2C1");
+    for group in &groups {
+        assert_same_canonical_group(group);
+        let canonical = canonical_string(group[0]);
+        assert_ne!(canonical, unmarked);
+        assert_eq!(canonical_string(&canonical), canonical);
+        let parsed: Smiles = group[0].parse().unwrap();
+        for junction in [4, 5] {
+            assert!(matches!(
+                parsed.smarts_tetrahedral_chirality(junction),
+                Some(Chirality::TH(1 | 2))
+            ));
+        }
+    }
+    assert_ne!(canonical_string(groups[0][0]), canonical_string(groups[1][0]));
+}
+
+#[test]
+fn canonicalize_clears_independent_redundant_tetrahedral_tags() {
+    for group in [
+        &["CC(C)O", "C[C@H](C)O", "C[C@@H](C)O"][..],
+        &["CC1CCCCC1", "C[C@H]1CCCCC1", "C[C@@H]1CCCCC1"][..],
+        &["C1CCC2CCCCC2C1", "C1CCC[C@H]2C1CCCC2", "C1CCCC2[C@H]1CCCC2"][..],
+        &["C[C@H](O)CC(C)C", "C[C@H](O)C[C@H](C)C", "C[C@H](O)C[C@@H](C)C"][..],
+    ] {
+        assert_same_canonical_group(group);
+    }
+    let redundant: Smiles = "C[C@H](C)O".parse().unwrap();
+    assert_eq!(redundant.smarts_tetrahedral_chirality(1), None);
+}
 
 #[test]
 fn canonicalize_preserves_directional_bond_distinction() {

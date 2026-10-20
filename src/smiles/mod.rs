@@ -711,6 +711,8 @@ impl<AtomPolicy: SmilesAtomPolicy> Smiles<AtomPolicy> {
     ///
     /// Use [`Self::tetrahedral_neighbors_anticlockwise`] for mapped neighbors.
     ///
+    /// Relative ring-junction configurations are supported.
+    ///
     /// # Panics
     /// Panics if `atom_id` is not a valid atom index in this graph.
     ///

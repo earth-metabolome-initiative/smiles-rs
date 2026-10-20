@@ -15,6 +15,13 @@ fn assert_distinct_canonicalization_state(left: &Smiles, right: &Smiles) {
 }
 
 #[test]
+fn canonicalize_preserves_coupled_ring_stereo_under_atom_permutations() {
+    for source in ["C1CCC[C@H]2[C@H]1CCCC2", "C1CCC[C@H]2[C@@H]1CCCC2"] {
+        assert_canonicalization_invariants(&Smiles::from_str(source).unwrap());
+    }
+}
+
+#[test]
 fn canonicalize_converges_source_backed_square_planar_groups() {
     let cis_group = [
         "[NH3][Pt@SP1]([NH3])(Cl)Cl",
