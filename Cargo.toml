@@ -18,6 +18,8 @@ all-features = true
 [features]
 default = []
 fuzzing = []
+diesel-postgres = ["dep:diesel", "diesel/postgres"]
+diesel-sqlite = ["dep:diesel", "diesel/sqlite"]
 datasets = [
     "dep:flate2",
     "dep:indicatif",
@@ -31,6 +33,7 @@ datasets = [
 [dependencies]
 csv = {version = "1.4.0", optional = true}
 dirs = {version = "7.0.0", optional = true}
+diesel = { version = "2.4.0", default-features = false, optional = true }
 elements_rs = "0.2.7"
 flate2 = { version = "1.1.9", optional = true, default-features = false, features = ["rust_backend"] }
 geometric-traits = { version = "0.2.3", default-features = false, features = ["alloc"] }
