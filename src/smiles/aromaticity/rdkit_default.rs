@@ -596,13 +596,8 @@ impl RdkitDefaultElectronModel {
             }
         }
 
-        if !candidate_rules.allow_exocyclic_multiple_bonds
-            && context.incident_noncyclic_multiple_bond_to.is_some()
-        {
-            return false;
-        }
-
-        true
+        candidate_rules.allow_exocyclic_multiple_bonds
+            || context.incident_noncyclic_multiple_bond_to.is_none()
     }
 
     fn electron_range(donor_type: ElectronDonorType) -> (u8, u8) {
