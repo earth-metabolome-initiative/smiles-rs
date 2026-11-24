@@ -36,7 +36,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev
       - name: Run Diesel SQLite integration tests
-        run: cargo test --locked --features diesel-sqlite --test test_diesel_sqlite
+        run: cargo test --locked --no-default-features --features diesel-sqlite --test test_diesel_sqlite
+
+  diesel-codecs:
+    name: Diesel codec dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.92"
+          targets: x86_64-unknown-none
+      - name: Check SQLite on bare metal
+        run: cargo check --locked --lib --no-default-features --features diesel-sqlite --target x86_64-unknown-none
+      - name: Check normal dependencies for native server clients
+        run: |
+          for feature in diesel-sqlite diesel-postgres diesel-mariadb diesel-mysql; do
+            tree=$(cargo tree --locked --no-default-features --features "$feature" -e normal --prefix none --color never)
+            if grep -E '^(pq-sys|mysqlclient-sys) ' <<< "$tree"; then
+              echo "::error::$feature pulls in a native server client"
+              exit 1
+            fi
+          done
 
   benches:
     name: Bench Targets
@@ -127,6 +149,35 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: smiles
+          POSTGRES_PASSWORD: smiles-ci
+        ports:
+          - 127.0.0.1::5432
+        options: --health-cmd "pg_isready -h 127.0.0.1 -U smiles" --health-interval 2s --health-timeout 3s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: smiles-ci-root
+          MARIADB_DATABASE: smiles
+          MARIADB_USER: smiles
+          MARIADB_PASSWORD: smiles-ci
+        ports:
+          - 127.0.0.1::3306
+        options: --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 2s --health-timeout 3s --health-retries 30
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: smiles-ci-root
+          MYSQL_DATABASE: smiles
+          MYSQL_USER: smiles
+          MYSQL_PASSWORD: smiles-ci
+        ports:
+          - 127.0.0.1::3306
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1 -u smiles -psmiles-ci" --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust
@@ -138,9 +189,28 @@ jobs:
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov
+      - name: Install native database clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev default-libmysqlclient-dev libsqlite3-dev
+      - name: Collect default coverage
+        run: cargo llvm-cov --workspace --all-targets --no-report
+      - name: Collect SQLite codec coverage
+        run: cargo llvm-cov --locked --no-report --features diesel-sqlite --test test_diesel_sqlite
+      - name: Run Diesel PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://smiles:smiles-ci@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/smiles?connect_timeout=5
+        run: cargo llvm-cov --locked --no-report --features diesel-postgres,diesel/postgres --test test_diesel_postgres -- --include-ignored
+      - name: Run Diesel MariaDB integration tests
+        env:
+          MARIADB_DATABASE_URL: mariadb://smiles:smiles-ci@127.0.0.1:${{ job.services.mariadb.ports['3306'] }}/smiles
+        run: cargo llvm-cov --locked --no-report --features diesel-mariadb,diesel/mariadb --test test_diesel_mariadb -- --include-ignored
+      - name: Run Diesel MySQL integration tests
+        env:
+          MYSQL_DATABASE_URL: mysql://smiles:smiles-ci@127.0.0.1:${{ job.services.mysql.ports['3306'] }}/smiles
+        run: cargo llvm-cov --locked --no-report --features diesel-mysql,diesel/mysql --test test_diesel_mysql -- --include-ignored
       - name: Generate coverage
         run: |
-          cargo llvm-cov --workspace --all-targets --no-report
           cargo llvm-cov --workspace --doc --no-clean --lcov --output-path target/coverage.lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

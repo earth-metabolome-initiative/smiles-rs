@@ -38,34 +38,46 @@ mod sqlite {
     impl_sqlite_codec!(WildcardSmiles);
 }
 
-#[cfg(feature = "diesel-postgres")]
-mod postgres {
+#[cfg(any(feature = "diesel-postgres", feature = "diesel-mariadb", feature = "diesel-mysql"))]
+mod server {
     use alloc::string::ToString;
 
-    use diesel::{backend::Backend, deserialize::FromSql, pg::Pg, serialize::ToSql};
+    use diesel::{backend::Backend, deserialize::FromSql, serialize::ToSql};
 
     use super::{Smiles, Text, WildcardSmiles, deserialize, serialize};
 
-    macro_rules! impl_postgres_codec {
-        ($molecule:ty) => {
-            impl FromSql<Text, Pg> for $molecule {
-                fn from_sql(value: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<Self> {
+    macro_rules! impl_server_codec {
+        ($molecule:ty, $backend:ty) => {
+            impl FromSql<Text, $backend> for $molecule {
+                fn from_sql(
+                    value: <$backend as Backend>::RawValue<'_>,
+                ) -> deserialize::Result<Self> {
                     let text = core::str::from_utf8(value.as_bytes())?;
                     Self::from_str(text).map_err(|error| error.to_string().into())
                 }
             }
 
-            impl ToSql<Text, Pg> for $molecule {
+            impl ToSql<Text, $backend> for $molecule {
                 fn to_sql<'bind>(
                     &'bind self,
-                    output: &mut serialize::Output<'bind, '_, Pg>,
+                    output: &mut serialize::Output<'bind, '_, $backend>,
                 ) -> serialize::Result {
-                    <str as ToSql<Text, Pg>>::to_sql(&self.render(), &mut output.reborrow())
+                    <str as ToSql<Text, $backend>>::to_sql(&self.render(), &mut output.reborrow())
                 }
             }
         };
     }
 
-    impl_postgres_codec!(Smiles);
-    impl_postgres_codec!(WildcardSmiles);
+    #[cfg(feature = "diesel-postgres")]
+    impl_server_codec!(Smiles, diesel::pg::Pg);
+    #[cfg(feature = "diesel-postgres")]
+    impl_server_codec!(WildcardSmiles, diesel::pg::Pg);
+    #[cfg(feature = "diesel-mariadb")]
+    impl_server_codec!(Smiles, diesel::mariadb::Mariadb);
+    #[cfg(feature = "diesel-mariadb")]
+    impl_server_codec!(WildcardSmiles, diesel::mariadb::Mariadb);
+    #[cfg(feature = "diesel-mysql")]
+    impl_server_codec!(Smiles, diesel::mysql::Mysql);
+    #[cfg(feature = "diesel-mysql")]
+    impl_server_codec!(WildcardSmiles, diesel::mysql::Mysql);
 }
