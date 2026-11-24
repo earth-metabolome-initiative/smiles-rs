@@ -10,7 +10,7 @@ permissions:
 jobs:
   validate:
     name: Validate release tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,7 +38,7 @@ jobs:
   publish:
     name: Publish to crates.io
     needs: checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: crates-io
     permissions:
       contents: read
@@ -61,7 +61,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
