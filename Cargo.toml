@@ -30,6 +30,7 @@ datasets = [
     "dep:dirs",
     "dep:zip",
     "dep:csv",
+    "thiserror/std",
 ]
 
 [dependencies]
