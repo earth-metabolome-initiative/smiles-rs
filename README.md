@@ -35,4 +35,14 @@ assert_eq!(formula.to_string(), "C₂H₆O");
 | Feature | Effect |
 | ------- | ------ |
 | `datasets` | Streams PubChem, ZINC20, COCONUT, LOTUS and MassSpecGym from a local cache, requires `std`. See [`datasets`](https://docs.rs/smiles-rs/latest/smiles_rs/datasets/). |
+| `diesel-sqlite` | SQLite `TEXT` storage with `no_std` and `alloc`. |
+| `diesel-postgres`, `diesel-mariadb`, `diesel-mysql` | `TEXT` storage on the named server without linking its native client. |
 | `fuzzing` | Exposes the parser internals the fuzz targets drive. |
+
+Diesel writes the rendered molecule. Reading as [`Smiles`](https://docs.rs/smiles-rs/latest/smiles_rs/struct.Smiles.html#diesel) rejects wildcard atoms. Reading as `WildcardSmiles` accepts them. To run a live test, set the matching connection URL and enable the driver explicitly.
+
+| Connection URL | Test command |
+| --- | --- |
+| `DATABASE_URL` | `cargo test --features diesel-postgres,diesel/postgres --test test_diesel_postgres -- --ignored` |
+| `MARIADB_DATABASE_URL` | `cargo test --features diesel-mariadb,diesel/mariadb --test test_diesel_mariadb -- --ignored` |
+| `MYSQL_DATABASE_URL` | `cargo test --features diesel-mysql,diesel/mysql --test test_diesel_mysql -- --ignored` |

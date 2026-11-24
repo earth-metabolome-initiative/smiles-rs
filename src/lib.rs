@@ -14,6 +14,13 @@ pub mod atom;
 pub mod bond;
 #[cfg(feature = "datasets")]
 pub mod datasets;
+#[cfg(any(
+    feature = "diesel-sqlite",
+    feature = "diesel-postgres",
+    feature = "diesel-mariadb",
+    feature = "diesel-mysql"
+))]
+mod diesel_sql;
 pub mod errors;
 pub(crate) mod parser;
 pub mod smiles;

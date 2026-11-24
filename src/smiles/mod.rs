@@ -364,7 +364,41 @@ impl SmilesAtomPolicy for WildcardAtoms {
     const ALLOW_WILDCARDS: bool = true;
 }
 
+#[cfg_attr(
+    any(
+        feature = "diesel-sqlite",
+        feature = "diesel-postgres",
+        feature = "diesel-mariadb",
+        feature = "diesel-mysql"
+    ),
+    derive(diesel::expression::AsExpression, diesel::deserialize::FromSqlRow)
+)]
+#[cfg_attr(
+    any(feature = "diesel-sqlite", feature = "diesel-postgres", feature = "diesel-mariadb", feature = "diesel-mysql"),
+    diesel(sql_type = diesel::sql_types::Text)
+)]
 /// Represents a parsed SMILES graph.
+///
+/// # Diesel
+///
+/// Each Diesel backend feature binds `Smiles` to `Text` expressions and
+/// reads it from `TEXT` columns. Writes store [`Smiles::render`] output.
+/// Reads parse the stored text and return a deserialization error for
+/// invalid SMILES or wildcard atoms.
+///
+/// ```
+/// # #[cfg(feature = "diesel-sqlite")]
+/// # {
+/// use diesel::{Connection, RunQueryDsl, SqliteConnection, expression::IntoSql, sql_types::Text};
+/// use smiles_rs::Smiles;
+///
+/// let mut connection = SqliteConnection::establish(":memory:").unwrap();
+/// let ethanol = Smiles::from_str("CCO").unwrap();
+/// let loaded: Smiles =
+///     diesel::select(ethanol.into_sql::<Text>()).get_result(&mut connection).unwrap();
+/// assert_eq!(loaded.render(), "CCO");
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct Smiles<AtomPolicy = ConcreteAtoms> {
     atom_nodes: Vec<Atom>,
@@ -376,11 +410,27 @@ pub struct Smiles<AtomPolicy = ConcreteAtoms> {
     atom_policy: PhantomData<fn() -> AtomPolicy>,
 }
 
+#[cfg_attr(
+    any(
+        feature = "diesel-sqlite",
+        feature = "diesel-postgres",
+        feature = "diesel-mariadb",
+        feature = "diesel-mysql"
+    ),
+    derive(diesel::expression::AsExpression, diesel::deserialize::FromSqlRow)
+)]
+#[cfg_attr(
+    any(feature = "diesel-sqlite", feature = "diesel-postgres", feature = "diesel-mariadb", feature = "diesel-mysql"),
+    diesel(sql_type = diesel::sql_types::Text)
+)]
 /// A parsed SMILES graph that may contain wildcard (`*`) atoms.
 ///
 /// This type preserves the wildcard-capable behavior that older [`Smiles`]
 /// parsing accepted. Use [`Smiles`] when every atom must resolve to a concrete
 /// chemical element.
+///
+/// Each Diesel backend feature provides the same `TEXT` storage as for
+/// [`Smiles`], with wildcard atoms permitted when reading.
 #[derive(Debug, Clone)]
 pub struct WildcardSmiles {
     inner: Smiles<WildcardAtoms>,
