@@ -6,35 +6,66 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
-    name: Publish to crates.io
+  validate:
+    name: Validate release tag
     runs-on: ubuntu-latest
-    environment: crates-io
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
-      - name: Check the tag matches the manifest version
+      - name: Check tag version and commit
         run: |
-          manifest=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-          tag="${GITHUB_REF_NAME#v}"
-          test "$manifest" = "$tag" || {
-            echo "tag $tag does not match manifest version $manifest" >&2
+          version=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "smiles-rs") | .version')
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Expected a stable release tag matching Cargo.toml (v$version)." >&2
             exit 1
-          }
-      - name: Run tests
-        run: cargo test --locked
-      - name: Run tests with the datasets feature
-        run: cargo test --locked --lib --features datasets
+          fi
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
+
+  checks:
+    name: Rust CI
+    needs: validate
+    uses: ./.github/workflows/rust.yml
+
+  publish:
+    name: Publish to crates.io
+    needs: checks
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
       - name: Authenticate with crates.io
         id: auth
         uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1
       - name: Publish
-        run: cargo publish --locked
+        run: cargo publish --locked -p smiles-rs
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
