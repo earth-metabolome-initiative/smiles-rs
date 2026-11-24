@@ -1,4 +1,4 @@
-Each fuzz target reads its curated seeds from `fuzz/corpus/<target>/seed-*`. `cargo fuzz run <target>` uses that directory as its default libFuzzer corpus, and `.clusterfuzzlite/build.sh` zips it into `<target>_seed_corpus.zip`, refusing a target that has none. Inputs libFuzzer discovers locally land in the same directory and stay untracked.
+Each fuzz target reads its curated seeds from `fuzz/corpus/<target>/seed-*`. `cargo fuzz run <target>` uses that directory as its default libFuzzer corpus. Inputs libFuzzer discovers locally land in the same directory and stay untracked.
 
 A seed file holds one SMILES string with no trailing newline, because the parser rejects the newline and the seed would only reach the error path.
 

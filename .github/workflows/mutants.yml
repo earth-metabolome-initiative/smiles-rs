@@ -33,7 +33,10 @@ jobs:
       - name: Compute diff against base branch
         run: git diff origin/${{ github.base_ref }} > pr.diff
       - name: Run cargo-mutants on changed lines
-        run: cargo mutants --no-shuffle -vV --in-diff pr.diff
+        env:
+          CARGO_BUILD_JOBS: 8
+          RUST_TEST_THREADS: 8
+        run: taskset -c 0-7 nice -n 19 cargo mutants --jobs 1 --jobserver-tasks 8 --no-shuffle -vV --in-diff pr.diff
       - name: Upload mutation results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
